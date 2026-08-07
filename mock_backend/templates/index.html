@@ -1,0 +1,66 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>模拟电商后台 - 商品上架</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Microsoft YaHei", system-ui, sans-serif; background: #f3f5f9; color: #2b2f36; }
+    .topbar { background: #1f2a44; color: #fff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+    .topbar h1 { font-size: 18px; font-weight: 600; }
+    .topbar a { color: #9fb3d9; text-decoration: none; font-size: 13px; }
+    .container { max-width: 640px; margin: 32px auto; background: #fff; border-radius: 10px; padding: 32px; box-shadow: 0 4px 16px rgba(31,42,68,.08); }
+    .field { margin-bottom: 22px; }
+    .field label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+    .field input, .field select, .field textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid #d5dae3; border-radius: 6px;
+      font-size: 14px; outline: none;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: #4a6cf7; }
+    .field textarea { min-height: 88px; resize: vertical; }
+    .hint { font-size: 12px; color: #8a919e; margin-top: 6px; }
+    .btn { background: #4a6cf7; color: #fff; border: none; border-radius: 6px; padding: 12px 28px;
+           font-size: 15px; cursor: pointer; }
+    .btn:hover { background: #3b5be0; }
+    .error { background: #fdecec; color: #c0392b; padding: 10px 14px; border-radius: 6px; margin-bottom: 18px; font-size: 13px; }
+    .badge { display: inline-block; background: #eef4ff; color: #4a6cf7; font-size: 12px;
+             padding: 4px 10px; border-radius: 999px; margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>🛍️ 模拟电商后台 <span class="badge" style="background:#2e3a5c;color:#9fb3d9;">本地演示环境</span></h1>
+    <a href="/submissions">查看已上架记录 →</a>
+  </div>
+  <div class="container">
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form action="/submit" method="post" id="listing-form">
+      <input type="hidden" id="idempotency_key" name="idempotency_key" value="">
+      <div class="field">
+        <label for="title">商品标题 *</label>
+        <input id="title" name="title" type="text" placeholder="例如：夏季新款 CloudWear纯色T恤 透气舒适" maxlength="120">
+        <div class="hint">由 AI 生成、人工审核后由 RPA 自动填入</div>
+      </div>
+      <div class="field">
+        <label for="category">商品类目 *</label>
+        <select id="category" name="category">
+          <option value="">请选择类目</option>
+          {% for cat in categories %}
+          <option value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="attributes">商品属性</label>
+        <textarea id="attributes" name="attributes" placeholder="颜色：白色；材质：纯棉；版型：基础款"></textarea>
+        <div class="hint">多个属性用「；」分隔</div>
+      </div>
+      <div class="field">
+        <label for="sku">SKU（选填）</label>
+        <input id="sku" name="sku" type="text" placeholder="自动生成或手动填写">
+      </div>
+      <button class="btn" id="submit-btn" type="submit">提交上架</button>
+    </form>
+  </div>
+</body>
+</html>

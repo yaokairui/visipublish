@@ -1,0 +1,78 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>已上架记录</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Microsoft YaHei", system-ui, sans-serif; background: #f3f5f9; color: #2b2f36; }
+    .topbar { background: #1f2a44; color: #fff; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+    .topbar h1 { font-size: 18px; }
+    .topbar a { color: #9fb3d9; text-decoration: none; font-size: 13px; }
+    .wrap { max-width: 900px; margin: 32px auto; padding: 0 16px; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 16px rgba(31,42,68,.08); }
+    th, td { padding: 12px 14px; text-align: left; font-size: 13px; border-bottom: 1px solid #eef1f6; }
+    th { background: #f7f9fc; color: #5a6270; font-weight: 600; }
+    td { word-break: break-all; }
+    .empty { background: #fff; border-radius: 10px; padding: 48px; text-align: center; color: #8a919e; }
+    .badge { display: inline-block; font-size: 12px; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+    .badge-listed { background: #e7f6ec; color: #1e8e4e; }
+    .badge-delisted { background: #fdecec; color: #c0392b; }
+    .btn-small { background: #4a6cf7; color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; cursor: pointer; }
+    .btn-small:hover { background: #3b5be0; }
+    .btn-small[disabled] { background: #c3c9d6; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>📋 已上架记录（来自 RPA / 手动提交）</h1>
+    <a href="/">返回上架表单 →</a>
+  </div>
+  <div class="wrap">
+    {% if records %}
+    <table>
+      <thead><tr><th>时间</th><th>标题</th><th>类目</th><th>属性</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody>
+        {% for r in records %}
+        <tr>
+          <td style="white-space:nowrap;">{{ r.created_at }}</td>
+          <td>{{ r.title }}</td>
+          <td>{{ r.category }}</td>
+          <td>{{ r.attributes }}</td>
+          <td>
+            {% if r.status == "delisted" %}
+            <span class="badge badge-delisted">已下架</span>
+            {% else %}
+            <span class="badge badge-listed">已上架</span>
+            {% endif %}
+          </td>
+          <td>
+            <button class="btn-small" type="button" onclick="delist('{{ r.id }}')"
+              {% if r.status == "delisted" %}disabled{% endif %}>下架</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">还没有上架记录，去 <a href="/">表单页</a> 试试吧</div>
+    {% endif %}
+  </div>
+  <script>
+    function delist(itemId) {
+      if (!confirm('确认下架该记录？')) return;
+      fetch('/delist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'item_id=' + encodeURIComponent(itemId)
+      })
+      .then(function (resp) { return resp.json(); })
+      .then(function (data) {
+        if (data.ok) { location.reload(); }
+        else { alert('下架失败：记录不存在'); }
+      })
+      .catch(function () { alert('下架失败，请重试'); });
+    }
+  </script>
+</body>
+</html>

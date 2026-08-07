@@ -1,0 +1,29 @@
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ===== 环境变量与密钥（.env.example 是公开模板，保留提交）=====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ===== 前端依赖与构建产物 =====
+node_modules/
+frontend/dist/
+
+# ===== 运行产物与本地数据 =====
+output/
+mock_backend/submissions.json
+
+# ===== 操作系统 / 编辑器 =====
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

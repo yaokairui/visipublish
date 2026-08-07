@@ -1,0 +1,37 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>上架成功</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Microsoft YaHei", system-ui, sans-serif; background: #f3f5f9; display: flex;
+           justify-content: center; align-items: center; min-height: 100vh; }
+    .card { background: #fff; border-radius: 12px; padding: 40px 48px; max-width: 560px; width: 90%;
+            box-shadow: 0 8px 24px rgba(31,42,68,.1); text-align: center; }
+    .icon { font-size: 52px; }
+    h1 { font-size: 22px; margin: 12px 0 6px; color: #1f2a44; }
+    .meta { color: #8a919e; font-size: 13px; margin-bottom: 18px; }
+    .detail { text-align: left; background: #f7f9fc; border-radius: 8px; padding: 16px; margin-bottom: 22px; font-size: 14px; }
+    .detail div { margin: 6px 0; word-break: break-all; }
+    .detail b { color: #4a6cf7; }
+    a { color: #4a6cf7; text-decoration: none; font-size: 14px; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">✅</div>
+    <h1 id="success-banner">商品上架成功</h1>
+    <div class="meta">记录 ID：{{ record.id }} ｜ 提交时间：{{ record.created_at }}</div>
+    <div class="detail">
+      <div><b>标题：</b>{{ record.title }}</div>
+      <div><b>类目：</b>{{ record.category }}</div>
+      <div><b>属性：</b>{{ record.attributes }}</div>
+      <div><b>SKU：</b>{{ record.sku or "（未填写）" }}</div>
+      <div><b>状态：</b>{% if record.status == "delisted" %}已下架{% else %}已上架{% endif %}</div>
+    </div>
+    <a href="/submissions">查看全部已上架记录</a>
+  </div>
+</body>
+</html>

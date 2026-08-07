@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="VisiPublish：一个本地优先的电商自动化工具集 —— 运营看板、AI 上架助手、评价分析。" />
+<title>VisiPublish · 电商 AI 工具集</title>
+<noscript><style>.reveal { opacity: 1 !important; transform: none !important; }</style></noscript>
+
+<!-- 本地优先加载 Tailwind（site/libs/），缺失时回退 CDN -->
+<script src="libs/tailwind.js"></script>
+<script>if (!window.tailwind) document.write('<script src="https://cdn.tailwindcss.com"><\/script>');</script>
+
+<script>
+  if (window.tailwind) {
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '"PingFang SC"', '"Microsoft YaHei"', 'system-ui', 'sans-serif'],
+            mono: ['ui-monospace', 'Consolas', 'monospace'],
+          },
+        },
+      },
+    };
+  }
+</script>
+
+<style type="text/tailwindcss">
+  .eyebrow  { @apply font-mono text-[11px] tracking-widest text-slate-400; }
+  .btn      { @apply inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all duration-200 cursor-pointer; }
+  .btn-primary { @apply btn bg-[#22c55e] text-slate-950 hover:brightness-110 shadow-lg shadow-[#22c55e]/20; }
+  .btn-ghost   { @apply btn border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10 hover:border-white/25; }
+  .tag      { @apply inline-flex items-center rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-slate-300; }
+  .badge    { @apply inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium; }
+  .badge-done { @apply badge border-[#22c55e]/40 bg-[#22c55e]/10 text-[#4ade80]; }
+  .badge-plan { @apply badge border-amber-400/40 bg-amber-400/10 text-amber-300; }
+</style>
+
+<style>
+  /* 主题 token（对照 ui-ux-pro-max 设计系统：深空蓝底 + 运行绿） */
+  :root {
+    --bg: #0b1120;
+    --card: #111c31;
+    --accent: #22c55e;
+    --text-2: #94a3b8;
+    --border: rgba(148, 163, 184, 0.14);
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(900px 420px at 12% -10%, rgba(34,197,94,.10), transparent 60%),
+      radial-gradient(800px 380px at 88% -20%, rgba(56,189,248,.08), transparent 60%),
+      linear-gradient(rgba(148,163,184,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148,163,184,.04) 1px, transparent 1px);
+    background-size: auto, auto, 44px 44px, 44px 44px;
+  }
+
+  /* 键盘焦点可见 */
+  :focus-visible { outline: 2px solid rgba(34,197,94,.8); outline-offset: 2px; border-radius: 6px; }
+
+  /* 尊重系统“减少动态效果” */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    html { scroll-behavior: auto; }
+    .reveal { opacity: 1 !important; transform: none !important; }
+  }
+
+  /* 滚动入场（IntersectionObserver 控制 .in） */
+  .reveal { opacity: 0; transform: translateY(16px); transition: opacity .5s cubic-bezier(.22,.61,.36,1), transform .5s cubic-bezier(.22,.61,.36,1); }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* 项目卡片 */
+  .project-card { transition: transform .3s ease, border-color .3s ease, box-shadow .3s ease; }
+  .project-card:hover { transform: translateY(-4px); border-color: rgba(34,197,94,.35); box-shadow: 0 18px 48px -18px rgba(34,197,94,.18); }
+  .project-card:active { transform: translateY(-1px); }
+
+  /* 卡片 CTA 箭头滑动 */
+  .card-cta svg { transition: transform .25s ease; }
+  .project-card:hover .card-cta svg { transform: translateX(4px); }
+
+  /* 状态点 */
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 9999px; }
+  .dot.on  { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,.7); }
+  .dot.off { background: #f59e0b; box-shadow: 0 0 8px rgba(245,158,11,.5); }
+
+  /* 跳转链接 */
+  .skip-link { position: absolute; left: -9999px; top: 0; z-index: 100; }
+  .skip-link:focus { left: 12px; top: 12px; }
+</style>
+</head>
+
+<body class="text-slate-100 antialiased min-h-dvh">
+<a href="#main" class="skip-link btn-primary">跳到主要内容</a>
+
+<!-- ============ 顶部导航 ============ -->
+<header class="sticky top-0 z-40 border-b border-white/5 bg-[#0b1120]/80 backdrop-blur">
+  <nav class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6" aria-label="主导航">
+    <a href="#" class="flex items-center gap-2 font-mono text-sm text-slate-200 hover:text-white transition-colors">
+      <span class="grid h-7 w-7 place-items-center rounded-md bg-gradient-to-br from-[#22c55e] to-emerald-700 text-[11px] font-bold text-slate-950">VP</span>
+      visipublish<span class="text-[#22c55e]">_</span>
+    </a>
+    <div class="flex items-center gap-1 sm:gap-2 text-sm">
+      <a href="#projects" class="inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-slate-400 hover:text-white transition-colors">项目</a>
+      <a href="#about" class="inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-slate-400 hover:text-white transition-colors">理念</a>
+      <a href="#contact" class="inline-flex min-h-11 items-center rounded-lg px-3 py-2 text-slate-400 hover:text-white transition-colors">关于</a>
+    </div>
+  </nav>
+</header>
+
+<main id="main" class="mx-auto max-w-6xl px-4 sm:px-6">
+
+  <!-- ============ Hero ============ -->
+  <section class="pt-20 pb-16 sm:pt-28 sm:pb-20">
+    <p class="eyebrow reveal in">~/visipublish · 本地电商自动化工具集</p>
+    <h1 class="reveal in mt-4 max-w-3xl text-3xl font-bold leading-tight tracking-tight sm:text-5xl" style="transition-delay:60ms">
+      把电商运营的脏活累活，<br class="hidden sm:block" />
+      做成<span class="text-[#22c55e]">能跑起来</span>的工具
+    </h1>
+    <p class="reveal in mt-5 max-w-xl text-base leading-relaxed text-slate-400 sm:text-lg" style="transition-delay:120ms">
+      三个小项目：一张本地运营大屏、一个 AI 上架助手，和一套还在路上的评价分析。
+      所有数据留在本地，工具不上传，双击就能跑。
+    </p>
+
+    <!-- 签名元素：终端状态条 -->
+    <div class="reveal in mt-8 inline-flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-white/10 bg-[#111c31]/70 px-4 py-3 font-mono text-xs text-slate-400" style="transition-delay:180ms" role="list" aria-label="项目运行状态">
+      <span class="flex items-center gap-2" role="listitem"><i class="dot on" aria-hidden="true"></i>ops-dashboard · 运行中</span>
+      <span class="flex items-center gap-2" role="listitem"><i class="dot on" aria-hidden="true"></i>listing-assistant · 运行中</span>
+      <span class="flex items-center gap-2" role="listitem"><i class="dot off" aria-hidden="true"></i>review-insights · 规划中</span>
+    </div>
+
+    <div class="reveal in mt-8 flex flex-wrap items-center gap-3" style="transition-delay:240ms">
+      <a href="#projects" class="btn-primary">看项目
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+      </a>
+      <a href="../dashboard/index.html" class="btn-ghost">直接打开运营看板</a>
+    </div>
+  </section>
+
+  <!-- ============ 项目网格 ============ -->
+  <section id="projects" class="scroll-mt-20 pb-16 sm:pb-24" aria-labelledby="projects-title">
+    <div class="mb-8 flex items-end justify-between gap-4">
+      <div>
+        <p class="eyebrow">01 · projects</p>
+        <h2 id="projects-title" class="mt-1 text-2xl font-bold sm:text-3xl">项目</h2>
+      </div>
+      <p class="hidden text-right text-sm text-slate-500 sm:block">已完成 2 个 · 规划中 1 个</p>
+    </div>
+
+    <div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+      <!-- 项目 1：全平台电商运营看板 -->
+      <article class="reveal project-card group rounded-xl border border-white/10 bg-[#111c31]/80 overflow-hidden">
+        <a href="../dashboard/index.html" class="block focus-visible:outline-none" aria-label="打开全平台电商运营看板">
+          <div class="aspect-video overflow-hidden border-b border-white/10 bg-[#0f172a]">
+            <img src="assets/ops-dashboard.png" alt="全平台电商运营看板界面截图（暗色大屏，含趋势图与指标卡）" width="1600" height="2139" loading="lazy"
+                 class="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.03]" />
+          </div>
+          <div class="p-5">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-base font-semibold">全平台电商运营看板</h3>
+              <span class="badge-done">已完成</span>
+            </div>
+            <p class="mt-2 text-sm leading-relaxed text-slate-400">
+              上传 Excel，一张暗色大屏看全平台：GMV、退款、客单价、ROI，多平台趋势与占比、店铺健康预警、商品 TOP。数据本地解析，双击即用。
+            </p>
+            <div class="mt-3 flex flex-wrap gap-1.5">
+              <span class="tag">Vue 3</span><span class="tag">Tailwind CSS</span>
+              <span class="tag">ECharts</span><span class="tag">SheetJS</span>
+            </div>
+            <div class="card-cta mt-4 flex items-center justify-between text-sm">
+              <span class="text-[#4ade80]">打开看板</span>
+              <svg class="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+            </div>
+          </div>
+        </a>
+      </article>
+
+      <!-- 项目 2：电商 AI 智能上架助手 -->
+      <article class="reveal project-card group rounded-xl border border-white/10 bg-[#111c31]/80 overflow-hidden" style="transition-delay:80ms">
+        <a href="../README.md" class="block focus-visible:outline-none" aria-label="查看电商 AI 智能上架助手说明">
+          <div class="aspect-video overflow-hidden border-b border-white/10 bg-[#0f172a]">
+            <img src="assets/listing-assistant.png" alt="电商 AI 智能上架助手界面截图（上传商品图与识别结果）" width="1500" height="1000" loading="lazy"
+                 class="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.03]" />
+          </div>
+          <div class="p-5">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-base font-semibold">电商 AI 智能上架助手</h3>
+              <span class="badge-done">已完成</span>
+            </div>
+            <p class="mt-2 text-sm leading-relaxed text-slate-400">
+              批量上传商品图，Vision 识别属性、规则库生成标题与卖点，人工审核后经渠道适配器模拟多平台上架，支持回读校验与截图留痕。
+            </p>
+            <div class="mt-3 flex flex-wrap gap-1.5">
+              <span class="tag">Streamlit</span><span class="tag">Vision API</span>
+              <span class="tag">Playwright</span><span class="tag">Flask</span>
+            </div>
+            <div class="card-cta mt-4 flex items-center justify-between text-sm">
+              <span class="text-[#4ade80]">查看说明</span>
+              <svg class="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+            </div>
+          </div>
+        </a>
+      </article>
+
+      <!-- 项目 3：商品评价分析看板（规划中） -->
+      <article class="reveal project-card rounded-xl border border-dashed border-white/15 bg-[#111c31]/40 overflow-hidden" style="transition-delay:160ms" aria-label="商品评价分析看板，规划中">
+        <div class="relative aspect-video overflow-hidden border-b border-white/10 bg-[#0f172a]">
+          <div class="absolute inset-0 grid place-items-center">
+            <div class="text-center">
+              <svg class="mx-auto h-8 w-8 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+              <p class="mt-2 font-mono text-xs text-slate-500">review-insights · 规划中</p>
+            </div>
+          </div>
+        </div>
+        <div class="p-5">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="text-base font-semibold">商品评价分析看板</h3>
+            <span class="badge-plan">规划中</span>
+          </div>
+          <p class="mt-2 text-sm leading-relaxed text-slate-400">
+            聚合各平台商品评价，做情感与关键词分析，快速定位差评痛点，反哺选品、客服与详情页优化。
+          </p>
+          <div class="mt-3 flex flex-wrap gap-1.5">
+            <span class="tag">Vue 3</span><span class="tag">FastAPI</span>
+            <span class="tag">Playwright</span><span class="tag">情感分析</span>
+          </div>
+          <div class="mt-4 text-sm text-slate-500">敬请期待 · 先做抓取可行性验证</div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============ 理念 ============ -->
+  <section id="about" class="scroll-mt-20 pb-16 sm:pb-24" aria-labelledby="about-title">
+    <p class="eyebrow">02 · principles</p>
+    <h2 id="about-title" class="mt-1 text-2xl font-bold sm:text-3xl">为什么做这些东西</h2>
+
+    <div class="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3">
+      <div class="reveal rounded-xl border border-white/10 bg-[#111c31]/60 p-5">
+        <h3 class="font-mono text-sm text-[#4ade80]">01 / 本地优先</h3>
+        <p class="mt-2 text-sm leading-relaxed text-slate-400">数据是用户的。工具不上传、不依赖账号，复制文件夹双击就能跑，关掉页面数据即清空。</p>
+      </div>
+      <div class="reveal rounded-xl border border-white/10 bg-[#111c31]/60 p-5" style="transition-delay:80ms">
+        <h3 class="font-mono text-sm text-[#4ade80]">02 / 自动化留人确认</h3>
+        <p class="mt-2 text-sm leading-relaxed text-slate-400">AI 负责批量生成与初筛，人工审核最后一道。机器提效，人来把关，出问题知道找谁。</p>
+      </div>
+      <div class="reveal rounded-xl border border-white/10 bg-[#111c31]/60 p-5" style="transition-delay:160ms">
+        <h3 class="font-mono text-sm text-[#4ade80]">03 / 先跑通再完善</h3>
+        <p class="mt-2 text-sm leading-relaxed text-slate-400">每个项目先做能演示的 MVP，验证价值后再补细节。宁可功能少一点，也要真的能跑。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 页脚 / 联系 ============ -->
+  <footer id="contact" class="scroll-mt-20 border-t border-white/5 py-10 text-center">
+    <p class="font-mono text-sm text-slate-300">visipublish<span class="text-[#22c55e]">_</span>@local</p>
+    <p class="mt-2 text-sm text-slate-400">三个项目都在同一个仓库里，本页可离线打开。</p>
+    <div class="mt-4 flex flex-wrap items-center justify-center gap-3 text-sm">
+      <a href="../dashboard/index.html" class="btn-ghost !py-2">运营看板</a>
+      <a href="../README.md" class="btn-ghost !py-2">上架助手说明</a>
+      <a href="../" class="btn-ghost !py-2">仓库根目录</a>
+    </div>
+    <p class="mt-6 text-xs text-slate-500">© <span id="year">2026</span> VisiPublish · 手写 HTML + Tailwind，无框架依赖</p>
+  </footer>
+</main>
+
+<script>
+  // 滚动入场：元素进入视口后加 .in（尊重 prefers-reduced-motion）
+  (function () {
+    var els = document.querySelectorAll('.reveal');
+    if (!('IntersectionObserver' in window)) {
+      els.forEach(function (el) { el.classList.add('in'); });
+      return;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.15 });
+    els.forEach(function (el) { io.observe(el); });
+  })();
+
+  // 页脚年份自动更新
+  document.getElementById('year').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

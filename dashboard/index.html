@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>全平台电商运营看板 · VisiPublish Ops Dashboard</title>
+
+<!-- 字体（本地优先）：IBM Plex Sans（拉丁，Styrene 风格近似）/ JetBrains Mono（数字）/ Noto Sans SC（中文变量字体） -->
+<link rel="stylesheet" href="libs/fonts/ibm-plex-sans.css" />
+<link rel="stylesheet" href="libs/fonts/jetbrains-mono.css" />
+<link rel="stylesheet" href="libs/fonts/noto-sans-sc.css" />
+
+<!-- ============================================================
+     零、依赖加载（本地优先，CDN 兜底）
+     说明：libs/ 目录下已内置 vue / echarts / xlsx / tailwind / fonts（字体），
+     复制整个 dashboard 文件夹即可离线双击运行；
+     若 libs 缺失或想用最新版，会自动回退到 CDN。
+     ============================================================ -->
+<script src="libs/vue.global.prod.js"></script>
+<script>if (!window.Vue) document.write('<script src="https://unpkg.com/vue@3.4.38/dist/vue.global.prod.js"><\/script>');</script>
+<script src="libs/echarts.min.js"></script>
+<script>if (!window.echarts) document.write('<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"><\/script>');</script>
+<script src="libs/xlsx.full.min.js"></script>
+<script>if (!window.XLSX) document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"><\/script>');</script>
+<script src="libs/tailwind.js"></script>
+<script>if (!window.tailwind) document.write('<script src="https://cdn.tailwindcss.com"><\/script>');</script>
+
+<script>
+  // Tailwind 扩展配置：中文字体 + 等宽数字字体
+  if (window.tailwind) {
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"IBM Plex Sans"', '"Noto Sans SC"', '"PingFang SC"', '"Microsoft YaHei"', '"Segoe UI"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'Consolas', 'monospace'],
+          },
+        },
+      },
+    };
+  }
+</script>
+
+<style type="text/tailwindcss">
+  /* @apply 规则由 Tailwind Play CDN 在运行时编译 */
+  .card        { @apply rounded-xl border border-white/10 bg-white/[0.03] backdrop-blur-sm; }
+  .input       { @apply bg-slate-900/70 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none hover:border-white/25 focus:border-cyan-400/60 transition-colors cursor-pointer; }
+  .filter-label{ @apply block text-[11px] uppercase tracking-widest text-slate-400 mb-1.5 font-medium; }
+  .chip        { @apply inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs cursor-pointer select-none transition-colors duration-200; }
+  .chip-on     { @apply bg-cyan-500/20 border-cyan-400/70 text-cyan-100 ring-1 ring-cyan-400/40 font-medium; }
+  .chip-off    { @apply bg-white/[0.03] border-white/10 text-slate-300 hover:text-white hover:border-white/25; }
+  .seg-btn     { @apply px-3 py-1.5 text-xs cursor-pointer select-none transition-colors duration-200; }
+  .seg-on      { @apply bg-violet-500/20 text-violet-200; }
+  .seg-off     { @apply bg-white/[0.03] text-slate-300 hover:text-white; }
+  .panel-title { @apply flex items-center gap-2 text-sm font-semibold text-slate-100; }
+  .panel-sub   { @apply text-[11px] font-normal text-slate-400; }
+  .btn-primary { @apply inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 hover:brightness-110 shadow-lg shadow-cyan-500/20 transition-all; }
+  .btn-secondary{ @apply inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-medium border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10 transition-all; }
+  .badge-ok    { @apply inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30; }
+  .badge-danger{ @apply inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium bg-rose-500/15 text-rose-300 border border-rose-500/30; }
+</style>
+
+<style>
+  /* 纯 CSS：Vue 挂载前隐藏模板、滚动条、图表过渡动画 */
+  [v-cloak] { display: none !important; }
+  body {
+    background-color: #070d1a;
+    background-image:
+      linear-gradient(rgba(148,163,184,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148,163,184,.045) 1px, transparent 1px);
+    background-size: 44px 44px;
+    letter-spacing: .01em;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* 键盘焦点可见 */
+  :focus-visible { outline: 2px solid rgba(34,211,238,.7); outline-offset: 2px; border-radius: 4px; }
+
+  /* 尊重系统“减少动态效果” */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+
+  /* 卡片入场动画 */
+  @keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .rise-in { animation: riseIn .5s ease-out both; }
+
+  /* KPI 顶部健康指示条 */
+  .kpi-accent { position: absolute; top: 0; left: 12px; right: 12px; height: 2px; border-radius: 0 0 4px 4px; }
+
+  /* 平台占比信号条 */
+  .signal-bar { display: flex; height: 10px; border-radius: 9999px; overflow: hidden; background: rgba(148,163,184,.08); }
+  .signal-seg { height: 100%; transition: width .5s ease; }
+
+  /* 卡片悬停微光 + 轻微上浮 */
+  .card-hover { transition: border-color .25s, box-shadow .25s, transform .2s ease-out; }
+  .card-hover:hover { border-color: rgba(34,211,238,.35); box-shadow: 0 0 24px rgba(34,211,238,.10); transform: translateY(-2px); }
+
+  /* 原生控件深色配色（日期选择器 / 下拉框箭头） */
+  .input { color-scheme: dark; }
+
+  /* 表格：表头吸顶 + 细滚动条 */
+  .table-wrap { max-height: 420px; overflow: auto; }
+  .table-wrap::-webkit-scrollbar { width: 8px; height: 8px; }
+  .table-wrap::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 4px; }
+  .table-wrap thead th { position: sticky; top: 0; background: #0e1a2e; color: #cbd5e1; font-weight: 600; z-index: 5; }
+
+  /* Toast 动画 */
+  .toast-fade-enter-active, .toast-fade-leave-active { transition: opacity .25s, transform .25s; }
+  .toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translateY(10px); }
+
+  /* 顶部氛围光晕（纯装饰） */
+  .glow-top { position: fixed; inset: 0 0 auto 0; height: 420px; pointer-events: none;
+    background:
+      radial-gradient(600px 220px at 15% -20px, rgba(34,211,238,.12), transparent 70%),
+      radial-gradient(700px 260px at 85% -40px, rgba(139,92,246,.14), transparent 70%);
+  }
+</style>
+</head>
+
+<body class="text-slate-100 antialiased">
+<div class="glow-top"></div>
+
+<div id="app" v-cloak class="relative min-h-screen">
+
+  <!-- ============================================================
+       一、顶部 Header：标题 + 上传 / 恢复示例数据
+       ============================================================ -->
+  <header class="sticky top-0 z-40 px-4 lg:px-6 pt-5 pb-4 bg-[#070d1a]/80 backdrop-blur-xl">
+    <div class="mx-auto w-full max-w-[1760px]">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <!-- Logo -->
+        <div class="h-9 w-9 rounded-lg bg-gradient-to-br from-cyan-400 to-violet-500 grid place-items-center shadow-lg shadow-cyan-500/20">
+          <svg class="h-5 w-5 text-slate-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3v18h18"/><path d="M7 14l4-4 4 3 5-6"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-wide flex items-center gap-2">
+            <span class="font-mono text-cyan-400/90">OPS://</span>全平台电商运营看板
+            <span class="text-[11px] font-mono text-cyan-400/80 border border-cyan-400/30 rounded px-1.5 py-0.5">LOCAL</span>
+          </h1>
+          <p class="text-xs text-slate-400">VisiPublish Ops Dashboard · 数据本地解析，不上传任何服务器</p>
+        </div>
+      </div>
+
+      <div class="hidden sm:flex flex-col items-end mr-1 text-[11px] font-mono text-slate-400 leading-tight">
+        <span>窗口 {{ filters.startDate }} ~ {{ filters.endDate }}</span>
+        <span class="text-cyan-400/90">{{ clock() }}</span>
+      </div>
+
+      <div class="flex items-center gap-2.5">
+        <button class="btn-secondary" @click="loadSample" title="载入内置的多平台模拟数据">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          恢复示例数据
+        </button>
+        <button class="btn-primary" @click="openFilePicker" title="选择本地的 .xlsx / .xls / .csv 文件">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
+          上传 Excel
+        </button>
+        <!-- 隐藏的文件选择框，由“上传 Excel”按钮触发 -->
+        <input ref="fileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" @change="onFileChange" />
+      </div>
+      </div>
+      <!-- 渐变分割线 -->
+      <div class="mt-4 h-px bg-gradient-to-r from-cyan-500/60 via-violet-500/40 to-transparent"></div>
+    </div>
+  </header>
+
+  <main class="px-4 lg:px-6 pb-10 space-y-4 mx-auto w-full max-w-[1760px]">
+
+    <!-- ============================================================
+         二点五、平台 GMV 占比信号条：占比即形状，随筛选实时变化
+         ============================================================ -->
+    <section v-if="filteredRows.length" class="card p-3">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[11px] uppercase tracking-widest text-slate-400">平台 GMV 占比 · 信号条</span>
+        <span class="text-[11px] font-mono text-slate-400">总 GMV · {{ signalBarTotal }}</span>
+      </div>
+      <div class="signal-bar" role="img" :aria-label="signalBarLabel">
+        <div v-for="s in shareSegments" :key="s.name" class="signal-seg"
+             :style="{ width: s.pct + '%', background: s.color }"
+             :title="s.name + ' ' + s.pct.toFixed(1) + '%'"></div>
+      </div>
+      <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+        <span v-for="s in shareSegments" :key="'l' + s.name" class="inline-flex items-center gap-1.5 text-[11px] text-slate-400">
+          <span class="h-1.5 w-1.5 rounded-full" :style="{ background: s.color }"></span>
+          {{ s.name }} <span class="font-mono text-slate-300">{{ s.pct.toFixed(1) }}%</span>
+        </span>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         三、顶部筛选栏：日期 / 平台 / 店铺 / 品类 / 新老客，全部实时联动
+         ============================================================ -->
+    <section class="card p-4">
+      <div class="flex flex-wrap items-end gap-x-6 gap-y-3">
+        <!-- 日期范围 -->
+        <div class="flex items-end gap-2">
+          <div>
+            <label class="filter-label">开始日期</label>
+            <input type="date" class="input" v-model="filters.startDate" :max="filters.endDate" />
+          </div>
+          <span class="pb-2 text-slate-500">—</span>
+          <div>
+            <label class="filter-label">结束日期</label>
+            <input type="date" class="input" v-model="filters.endDate" :min="filters.startDate" />
+          </div>
+        </div>
+
+        <!-- 平台多选（chip 开关） -->
+        <div>
+          <label class="filter-label">平台（可多选）</label>
+          <div class="flex flex-wrap gap-1.5">
+            <button v-for="p in allPlatforms" :key="p" @click="togglePlatform(p)"
+                    :class="filters.platforms.includes(p) ? 'chip-on' : 'chip-off'"
+                    :aria-pressed="filters.platforms.includes(p)"
+                    class="chip">{{ p }}</button>
+          </div>
+        </div>
+
+        <!-- 店铺（随平台选择联动） -->
+        <div>
+          <label class="filter-label">店铺</label>
+          <select class="input" v-model="filters.shop">
+            <option value="全部店铺">全部店铺</option>
+            <option v-for="s in shopOptions" :key="s" :value="s">{{ s }}</option>
+          </select>
+        </div>
+
+        <!-- 品类 -->
+        <div>
+          <label class="filter-label">品类</label>
+          <select class="input" v-model="filters.category">
+            <option value="全部品类">全部品类</option>
+            <option v-for="c in allCategories" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </div>
+
+        <!-- 新老客 -->
+        <div>
+          <label class="filter-label">新老客</label>
+          <div class="flex rounded-lg overflow-hidden border border-white/10">
+            <button v-for="o in ['全部','新客','老客']" :key="o" @click="filters.customer = o"
+                    :class="filters.customer === o ? 'seg-on' : 'seg-off'"
+                    :aria-pressed="filters.customer === o" class="seg-btn">{{ o }}</button>
+          </div>
+        </div>
+
+        <button class="btn-secondary !py-1.5" @click="resetFilters">↺ 重置</button>
+      </div>
+      <p class="mt-4 pt-3 border-t border-white/5 text-xs text-slate-400 leading-relaxed">{{ statsText }}</p>
+    </section>
+
+    <!-- ============================================================
+         空状态：当前筛选无匹配数据 / 尚未导入数据
+         ============================================================ -->
+    <section v-if="!filteredRows.length" class="card p-10 text-center">
+      <div class="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-white/5 text-slate-400">
+        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 3v18h18"/><path d="M7 13l3-3 3 2 4-5"/>
+        </svg>
+      </div>
+      <h2 class="text-sm font-semibold text-slate-200">{{ allRows.length ? '当前筛选条件下没有数据' : '还没有可展示的数据' }}</h2>
+      <p class="mt-1 text-xs text-slate-400">{{ allRows.length ? '试试调整日期范围、平台或其他筛选条件。' : '点击右上角「上传 Excel」导入本地数据，或先恢复示例数据。' }}</p>
+      <div class="mt-4 flex flex-wrap justify-center gap-2">
+        <button class="btn-secondary" @click="resetFilters">↺ 重置筛选</button>
+        <button v-if="!allRows.length" class="btn-primary" @click="openFilePicker">上传 Excel</button>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         三、全局核心指标卡片（GMV / 净销售额 / 退款金额 / 退款占比
+             / 客单价 / ROI / 毛利率 / 订单数），带环比标签
+         ============================================================ -->
+    <section v-if="filteredRows.length" class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+      <div v-for="(k, i) in kpiCards" :key="k.key" class="kpi-card card card-hover p-3.5 relative overflow-hidden rise-in" :style="{ animationDelay: (i * 60) + 'ms' }">
+        <div class="kpi-accent" :class="k.accentClass"></div>
+        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-medium truncate">{{ k.label }}</div>
+        <div ref="kpiValue" class="mt-1.5 text-xl xl:text-2xl font-mono font-semibold tabular-nums" :class="k.color">{{ k.value }}</div>
+        <svg v-if="sparkPath(k.key)" class="mt-2 h-6 w-full" role="img" viewBox="0 0 100 24" preserveAspectRatio="none"
+             :aria-label="'趋势：' + sparkTitle(k)" :class="k.color">
+          <defs>
+            <linearGradient :id="'sg-' + k.key" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="currentColor" stop-opacity="0.28"/>
+              <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path :d="sparkArea(k.key)" :fill="'url(#sg-' + k.key + ')'" opacity="0.6"/>
+          <path :d="sparkPath(k.key)" fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>
+        <div class="mt-1 text-[11px] flex items-center gap-1">
+          <span v-if="k.deltaText" :class="k.deltaClass">{{ k.deltaText }}</span>
+          <span v-else class="text-slate-500">—</span>
+          <span class="text-slate-500">较上周期</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         四、中部图表区（ECharts）
+         ============================================================ -->
+    <section v-if="filteredRows.length" class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+      <!-- 各平台 GMV 趋势（多折线） -->
+      <div class="card card-hover p-4 lg:col-span-2">
+        <div class="panel-title">各平台 GMV 趋势 <span class="panel-sub">按日汇总 · 多平台对比</span></div>
+        <div ref="chartTrend" class="h-[320px] mt-2"></div>
+      </div>
+
+      <!-- 平台销售占比（环形） -->
+      <div class="card card-hover p-4">
+        <div class="panel-title">平台销售占比</div>
+        <div ref="chartShare" class="h-[320px] mt-2"></div>
+      </div>
+
+      <!-- 各平台业绩对比（多柱状） -->
+      <div class="card card-hover p-4">
+        <div class="panel-title">各平台业绩对比 <span class="panel-sub">GMV vs 净销售额</span></div>
+        <div ref="chartCompare" class="h-[280px] mt-2"></div>
+      </div>
+
+      <!-- 退款占比与原因（双迷你图） -->
+      <div class="card card-hover p-4">
+        <div class="panel-title">退款占比与原因</div>
+        <div class="grid grid-cols-2 gap-2 mt-2">
+          <div ref="chartRefundRate" class="h-[280px]"></div>
+          <div ref="chartRefundReason" class="h-[280px]"></div>
+        </div>
+      </div>
+
+      <!-- 新老客贡献（堆叠柱状） -->
+      <div class="card card-hover p-4">
+        <div class="panel-title">新老客贡献 <span class="panel-sub">GMV 按客群</span></div>
+        <div ref="chartCustomer" class="h-[280px] mt-2"></div>
+      </div>
+
+      <!-- 各平台体验分（横向条形 + 预警线） -->
+      <div class="card card-hover p-4 lg:col-span-3">
+        <div class="panel-title">各平台体验分 <span class="panel-sub">预警线 4.3 分</span></div>
+        <div ref="chartExperience" class="h-[220px] mt-2"></div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         五、底部明细表格：店铺健康数（标红预警）+ 商品销售 TOP
+         ============================================================ -->
+    <section v-if="filteredRows.length" class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+
+      <!-- 店铺健康数 -->
+      <div class="card card-hover p-4">
+        <div class="panel-title flex items-center gap-2">
+          店铺健康数
+          <span class="text-[11px] font-normal text-slate-400">共 {{ storeHealth.length }} 家</span>
+          <span v-if="warnCount" class="badge-danger">⚠ {{ warnCount }} 家预警</span>
+        </div>
+        <div class="table-wrap mt-3">
+          <table class="w-full text-xs whitespace-nowrap">
+            <thead>
+              <tr class="text-slate-400 border-b border-white/10">
+                <th class="py-2 pr-2 text-left font-medium">店铺</th>
+                <th class="py-2 pr-2 text-left font-medium">平台</th>
+                <th class="py-2 pr-2 text-right font-medium">订单数</th>
+                <th class="py-2 pr-2 text-right font-medium">GMV</th>
+                <th class="py-2 pr-2 text-right font-medium">退款率</th>
+                <th class="py-2 pr-2 text-right font-medium">发货时长</th>
+                <th class="py-2 pr-2 text-right font-medium">体验分</th>
+                <th class="py-2 text-center font-medium">状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in storeHealth" :key="s.shop"
+                  class="border-b border-white/5 transition-colors hover:bg-white/[0.04]" :class="s.warnings.length ? 'bg-rose-500/10' : ''">
+                <td class="py-2 pr-2 font-medium text-slate-100">{{ s.shop }}</td>
+                <td class="py-2 pr-2">
+                  <span class="inline-block h-2 w-2 rounded-full mr-1.5" :style="{ background: colorOf(s.platform) }"></span>
+                  {{ s.platform }}
+                </td>
+                <td class="py-2 pr-2 text-right font-mono text-slate-300">{{ fmtInt(s.orders) }}</td>
+                <td class="py-2 pr-2 text-right font-mono text-cyan-300">{{ compactMoney(s.gmv) }}</td>
+                <td class="py-2 pr-2 text-right font-mono" :class="s.refundRate > 0.12 ? 'text-rose-300 font-semibold' : 'text-slate-300'">{{ pct(s.refundRate) }}</td>
+                <td class="py-2 pr-2 text-right font-mono" :class="s.shipDays > 2.2 ? 'text-rose-300 font-semibold' : 'text-slate-300'">{{ s.shipDays.toFixed(1) }}天</td>
+                <td class="py-2 pr-2 text-right font-mono" :class="s.exp < 4.3 ? 'text-rose-300 font-semibold' : 'text-slate-300'">{{ s.exp.toFixed(2) }}</td>
+                <td class="py-2 text-center">
+                  <span v-if="s.warnings.length" class="badge-danger" :title="s.warnings.join('、')">⚠ {{ s.warnings.join('·') }}</span>
+                  <span v-else class="badge-ok">正常</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 商品销售明细 TOP -->
+      <div class="card card-hover p-4">
+        <div class="panel-title">商品销售明细 TOP {{ productTop.length }}</div>
+        <div class="table-wrap mt-3">
+          <table class="w-full text-xs whitespace-nowrap">
+            <thead>
+              <tr class="text-slate-400 border-b border-white/10">
+                <th class="py-2 pr-2 text-left font-medium">#</th>
+                <th class="py-2 pr-2 text-left font-medium">商品</th>
+                <th class="py-2 pr-2 text-left font-medium">品类</th>
+                <th class="py-2 pr-2 text-left font-medium">平台</th>
+                <th class="py-2 pr-2 text-right font-medium">销量</th>
+                <th class="py-2 pr-2 text-right font-medium">GMV</th>
+                <th class="py-2 pr-2 text-right font-medium">退款率</th>
+                <th class="py-2 text-right font-medium">毛利率</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(p, i) in productTop" :key="p.product"
+                  class="border-b border-white/5 transition-colors hover:bg-white/[0.04]" :class="p.refundRate > 0.15 ? 'bg-rose-500/10' : ''">
+                <td class="py-2 pr-2 font-mono text-slate-500">{{ i + 1 }}</td>
+                <td class="py-2 pr-2 font-medium text-slate-100 max-w-[180px] truncate" :title="p.product">{{ p.product }}</td>
+                <td class="py-2 pr-2 text-slate-400">{{ p.category }}</td>
+                <td class="py-2 pr-2 text-slate-400">{{ p.platforms }}</td>
+                <td class="py-2 pr-2 text-right font-mono text-slate-300">{{ fmtInt(p.units) }}</td>
+                <td class="py-2 pr-2 text-right font-mono text-cyan-300">{{ compactMoney(p.gmv) }}</td>
+                <td class="py-2 pr-2 text-right font-mono" :class="p.refundRate > 0.15 ? 'text-rose-300 font-semibold' : 'text-slate-300'">{{ pct(p.refundRate) }}</td>
+                <td class="py-2 text-right font-mono text-emerald-300">{{ pct(p.margin) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         六、页脚：版权 + 本地运行提示
+         ============================================================ -->
+    <footer class="pt-4 pb-2 text-center text-xs text-slate-500 leading-relaxed">
+      <p>© 2026 VisiPublish · 全平台电商运营看板 v1.0</p>
+      <p>纯前端本地运行：数据仅保存在浏览器内存中，刷新即清空 · 依赖库已本地化，可离线双击使用</p>
+    </footer>
+  </main>
+
+  <!-- Toast 提示 -->
+  <transition name="toast-fade">
+    <div v-if="toast.show"
+         role="status" aria-live="polite"
+         class="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs shadow-xl border backdrop-blur max-w-[70vw]"
+         :class="toast.error ? 'border-rose-500/40 bg-rose-950/90 text-rose-200' : 'border-cyan-500/40 bg-slate-900/95 text-cyan-100'">
+      <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>
+      </svg>
+      <span>{{ toast.msg }}</span>
+    </div>
+  </transition>
+</div>
+
+<!-- ============================================================
+     主应用脚本
+     ============================================================ -->
+<script>
+(function () {
+  'use strict';
+  if (!window.Vue || !window.echarts || !window.XLSX) {
+    document.getElementById('app').innerHTML =
+      '<div style="color:#fda4af;padding:60px;text-align:center">依赖加载失败：请联网（或确保 libs/ 目录完整）后刷新页面。</div>';
+    return;
+  }
+  const { createApp, nextTick } = Vue;
+
+  /* ======================= 常量与基础配置 ======================= */
+  const PLATFORMS = ['淘宝', '拼多多', '抖音', '京东', '快手', '小红书'];
+  const CATEGORIES = ['服装鞋包', '数码家电', '美妆个护', '家居日用', '食品生鲜', '运动户外'];
+  const REFUND_REASONS = ['七天无理由', '商品质量问题', '发货太慢', '与描述不符', '不喜欢/拍错', '其他'];
+
+  // 各平台固定店铺（示例数据用）
+  const PLATFORM_SHOPS = {
+    '淘宝': ['星屿旗舰店', '潮汐百货店'],
+    '拼多多': ['拼鲜优选', '多多好物严选'],
+    '抖音': ['抖抖潮流馆', '云上甄选'],
+    '京东': ['京品自营旗舰店', '京品生活专营店'],
+    '快手': ['快手精选联盟', '老铁严选'],
+    '小红书': ['种草研究所', '小确幸杂货铺'],
+  };
+
+  // 各品类下的商品名池（示例数据用）
+  const PRODUCTS = {
+    '服装鞋包': ['轻氧纯棉T恤', '山系三合一冲锋衣', '云感老爹鞋', '复古水洗牛仔外套', '冰丝阔腿裤'],
+    '数码家电': ['主动降噪蓝牙耳机', '迷你桌面小风扇', '磁吸充电宝', '静音桌面加湿器', '大屏智能手环'],
+    '美妆个护': ['玻尿酸水光精华', '氨基酸温和洗面奶', '清爽防晒隔离霜', '密集修护面膜', '烟酰胺修护面霜'],
+    '家居日用': ['慢回弹记忆棉枕', '大豆香薰蜡烛', '免手洗懒人拖把', '大容量收纳箱三件套', '冰感凉席三件套'],
+    '食品生鲜': ['冻干速溶咖啡', '每日坚果礼盒', '低脂即食鸡胸肉', '鲜炖即食燕窝', '黄桃水果罐头'],
+    '运动户外': ['加厚防滑瑜伽垫', '碳素纤维羽毛球拍', '速干透气运动服', '便携露营折叠椅', '智能计数跳绳'],
+  };
+
+  // 平台经营参数（示例数据用）：GMV 权重 / 退款率 / 广告占比 / 体验分 / 发货时长 / 新客占比
+  const PLATFORM_PARAMS = {
+    '淘宝':   { w: 3800, refund: 0.07, ad: 0.12, exp: 4.65, ship: 1.4, fresh: 0.35 },
+    '拼多多': { w: 5200, refund: 0.14, ad: 0.16, exp: 4.25, ship: 2.1, fresh: 0.50 },
+    '抖音':   { w: 4600, refund: 0.11, ad: 0.22, exp: 4.55, ship: 1.9, fresh: 0.45 },
+    '京东':   { w: 3400, refund: 0.05, ad: 0.08, exp: 4.85, ship: 1.1, fresh: 0.30 },
+    '快手':   { w: 2400, refund: 0.13, ad: 0.18, exp: 4.35, ship: 2.3, fresh: 0.55 },
+    '小红书': { w: 1500, refund: 0.09, ad: 0.15, exp: 4.70, ship: 1.6, fresh: 0.65 },
+  };
+
+  // 平台品牌色（暗色背景适配）
+  const PLATFORM_COLORS = {
+    '淘宝': '#fb7185', '拼多多': '#fb923c', '抖音': '#22d3ee',
+    '京东': '#60a5fa', '快手': '#c084fc', '小红书': '#f472b6',
+  };
+  const FALLBACK_COLORS = ['#34d399', '#facc15', '#818cf8', '#f472b6', '#2dd4bf', '#f97316', '#a3e635'];
+  function colorOf(p) {
+    if (PLATFORM_COLORS[p]) return PLATFORM_COLORS[p];
+    let h = 0; for (const c of String(p)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    return FALLBACK_COLORS[h % FALLBACK_COLORS.length];
+  }
+
+  /* ======================= 工具函数 ======================= */
+  // 可复现的伪随机数生成器（保证示例数据每次一致）
+  function mulberry32(seed) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const pad = n => String(n).padStart(2, '0');
+  function fmtDate(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function addDays(iso, n) { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return fmtDate(d); }
+  function diffDays(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
+  function sum(rows, key) { return rows.reduce((s, r) => s + (+r[key] || 0), 0); }
+
+  function fmtInt(v) { return Number(v || 0).toLocaleString('zh-CN'); }
+  function pct(v) { return (v * 100).toFixed(1) + '%'; }
+  function compactMoney(v) {
+    v = Number(v || 0);
+    if (Math.abs(v) >= 1e8) return '¥' + (v / 1e8).toFixed(2) + '亿';
+    if (Math.abs(v) >= 1e4) return '¥' + (v / 1e4).toFixed(1) + '万';
+    return '¥' + v.toLocaleString('zh-CN', { maximumFractionDigits: 0 });
+  }
+  function money(v, dec) {
+    return '¥' + Number(v || 0).toLocaleString('zh-CN', { maximumFractionDigits: dec || 0 });
+  }
+  function compact(v) {
+    v = Number(v || 0);
+    if (Math.abs(v) >= 1e8) return (v / 1e8).toFixed(1) + '亿';
+    if (Math.abs(v) >= 1e4) return (v / 1e4).toFixed(1) + '万';
+    return String(Math.round(v));
+  }
+
+  // 环比变化：返回带箭头与正负号的百分比文本
+  function deltaText(cur, prev, invert) {
+    if (prev == null || prev === 0) return null;
+    const d = (cur - prev) / prev;
+    const good = invert ? d < 0 : d >= 0;
+    const arrow = d >= 0 ? '▲' : '▼';
+    return { text: arrow + ' ' + Math.abs(d * 100).toFixed(1) + '%', good };
+  }
+
+  /* ======================= 示例数据生成 ======================= */
+  function makeSampleData() {
+    const rnd = mulberry32(20260806);
+    const rows = [];
+    const START = '2026-06-01', DAYS = 61;
+    const pick = arr => arr[Math.floor(rnd() * arr.length)];
+
+    for (let i = 0; i < DAYS; i++) {
+      const date = addDays(START, i);
+      const dow = new Date(date + 'T00:00:00').getDay();
+      const weekendBoost = (dow === 0 || dow === 6) ? 1.28 : 1;
+
+      for (const platform of PLATFORMS) {
+        const P = PLATFORM_PARAMS[platform];
+        for (const shop of PLATFORM_SHOPS[platform]) {
+          const shopW = shop === PLATFORM_SHOPS[platform][0] ? 1 : 0.72;
+          for (const category of CATEGORIES) {
+            for (const customerType of ['新客', '老客']) {
+              const freshRatio = customerType === '新客' ? P.fresh : 1 - P.fresh;
+              // 日 GMV：平台权重 × 店铺权重 × 新老客占比 × 周末系数 × 随机扰动
+              const gmv = Math.round(P.w * shopW * freshRatio * weekendBoost * (0.75 + rnd() * 0.5) * 100) / 100;
+              const refundRate = clamp(P.refund + (rnd() - 0.5) * 0.05, 0.02, 0.3);
+              const refundAmount = Math.round(gmv * refundRate * 100) / 100;
+              const orderCount = Math.max(1, Math.round(gmv / (90 + rnd() * 160)));
+              const units = Math.round(orderCount * (1 + rnd() * 2));
+              const adCost = Math.round(gmv * P.ad * (0.8 + rnd() * 0.4) * 100) / 100;
+              const goodsCost = Math.round(gmv * (0.38 + rnd() * 0.12) * 100) / 100;
+              const netSales = Math.round((gmv - refundAmount) * 100) / 100;
+              const experienceScore = Math.round(clamp(P.exp + (rnd() - 0.5) * 0.3, 3.9, 4.95) * 100) / 100;
+              const shipDays = Math.round((P.ship + (rnd() - 0.5) * 0.6) * 100) / 100;
+              const refundReason = refundAmount > 0
+                ? pick(REFUND_REASONS.slice(0, 5)) : '';
+
+              rows.push({
+                date, platform, shop, category,
+                productName: pick(PRODUCTS[category]),
+                customerType, gmv, netSales, refundAmount,
+                orderCount, units, adCost, goodsCost,
+                refundOrderCount: Math.max(0, Math.round(orderCount * refundRate * (0.7 + rnd() * 0.6))),
+                refundReason, experienceScore, shipDays,
+              });
+            }
+          }
+        }
+      }
+    }
+    return rows;
+  }
+
+  /* ======================= Excel 导入与字段映射 ======================= */
+  const normKey = k => String(k).trim().toLowerCase().replace(/[\s_\-（）()]/g, '');
+  const ALIASES = {
+    date:        ['日期', 'date', '订单日期', '下单日期', 'time', '日'],
+    platform:    ['平台', 'platform', '渠道', 'channel'],
+    shop:        ['店铺', '店名', 'shop', 'store', '店铺名称'],
+    category:    ['品类', '类目', 'category', '商品类目'],
+    productName: ['商品', '商品名称', '产品', 'product', '商品标题', 'sku'],
+    customerType:['新老客', '客户类型', '用户类型', 'customer', '是否新客'],
+    gmv:         ['成交金额', 'gmv', '销售额', '支付金额', '实付金额'],
+    netSales:    ['净销售额', '净成交额', 'netsales', 'netgmv'],
+    refundAmount:['退款金额', '退款额', 'refund', 'refundamount', '退货金额'],
+    adCost:      ['广告费', '广告花费', '推广费', 'adcost', '投放金额', 'ad'],
+    goodsCost:   ['商品成本', '成本', 'goodscost', 'cost', '货品成本'],
+    orderCount:  ['订单数', '订单量', 'ordercount', 'orders'],
+    units:       ['销量', '件数', '销售件数', 'units', 'quantity', '数量'],
+    refundOrderCount: ['退款订单数', 'refundorders', '退款单量'],
+    refundReason:['退款原因', 'refundreason', '退货原因'],
+    experienceScore: ['体验分', '店铺评分', 'experience', 'score', '评分'],
+    shipDays:    ['发货时长', '平均发货时长', 'shipdays', '发货速度'],
+  };
+
+  function parseDate(v) {
+    // 1) Excel 日期序列号
+    if (typeof v === 'number' && v > 20000 && v < 80000 && window.XLSX.SSF) {
+      const d = window.XLSX.SSF.parse_date_code(v);
+      if (d) return d.y + '-' + pad(d.m) + '-' + pad(d.d);
+    }
+    if (v instanceof Date && !isNaN(v)) return fmtDate(v);
+    const s = String(v == null ? '' : v).trim();
+    if (!s) return null;
+    // 2) 2026/6/1、2026-6-1、2026年6月1日
+    let m = s.match(/^(\d{4})[年/\-.](\d{1,2})[月/\-.](\d{1,2})/);
+    if (m) return m[1] + '-' + pad(m[2]) + '-' + pad(m[3]);
+    // 3) 20260601
+    m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+    if (m) return m[1] + '-' + m[2] + '-' + m[3];
+    // 4) 交给 Date 解析
+    const d = new Date(s);
+    return isNaN(d) ? null : fmtDate(d);
+  }
+
+  function toNum(v) {
+    if (v == null || v === '') return NaN;
+    if (typeof v === 'number') return v;
+    if (typeof v === 'string') {
+      const t = v.replace(/,/g, '').trim();
+      if (!t) return NaN;
+      if (t.endsWith('%')) return parseFloat(t) / 100;
+      return parseFloat(t.replace(/[^\d.\-]/g, ''));
+    }
+    return NaN;
+  }
+
+  function normalizeCustomer(v) {
+    const t = String(v == null ? '' : v).trim();
+    if (/新|new/i.test(t)) return '新客';
+    return '老客';
+  }
+
+  // 把 Excel 的一行原始数据映射为看板标准行
+  function normalizeRow(raw, lineNo) {
+    const keys = Object.keys(raw);
+    const find = aliases => {
+      for (const a of aliases) {
+        const hit = keys.find(k => normKey(k) === normKey(a));
+        if (hit !== undefined && raw[hit] !== '') return raw[hit];
+      }
+      return undefined;
+    };
+    const date = parseDate(find(ALIASES.date));
+    if (!date) throw new Error('第 ' + lineNo + ' 行日期无法识别');
+    const gmv = toNum(find(ALIASES.gmv));
+    if (isNaN(gmv)) throw new Error('第 ' + lineNo + ' 行缺少成交金额');
+
+    const refund = isNaN(toNum(find(ALIASES.refundAmount))) ? 0 : toNum(find(ALIASES.refundAmount));
+    const netSales = isNaN(toNum(find(ALIASES.netSales))) ? gmv - refund : toNum(find(ALIASES.netSales));
+    const orderCount = isNaN(toNum(find(ALIASES.orderCount))) ? Math.max(1, Math.round(gmv / 120)) : toNum(find(ALIASES.orderCount));
+    const units = isNaN(toNum(find(ALIASES.units))) ? orderCount : toNum(find(ALIASES.units));
+    const refundOrderCount = isNaN(toNum(find(ALIASES.refundOrderCount))) ? 0 : toNum(find(ALIASES.refundOrderCount));
+    const adCost = isNaN(toNum(find(ALIASES.adCost))) ? 0 : toNum(find(ALIASES.adCost));
+    const goodsCost = isNaN(toNum(find(ALIASES.goodsCost))) ? gmv * 0.45 : toNum(find(ALIASES.goodsCost));
+    const exp = isNaN(toNum(find(ALIASES.experienceScore))) ? 4.5 : toNum(find(ALIASES.experienceScore));
+    const shipDays = isNaN(toNum(find(ALIASES.shipDays))) ? 1.5 : toNum(find(ALIASES.shipDays));
+
+    return {
+      date,
+      platform: String(find(ALIASES.platform) ?? '未分类'),
+      shop: String(find(ALIASES.shop) ?? '未命名店铺'),
+      category: String(find(ALIASES.category) ?? '未分类'),
+      productName: String(find(ALIASES.productName) ?? '未命名商品'),
+      customerType: normalizeCustomer(find(ALIASES.customerType)),
+      gmv: Math.round(gmv * 100) / 100,
+      netSales: Math.round(netSales * 100) / 100,
+      refundAmount: Math.round(refund * 100) / 100,
+      orderCount, units,
+      adCost: Math.round(adCost * 100) / 100,
+      goodsCost: Math.round(goodsCost * 100) / 100,
+      refundOrderCount,
+      refundReason: String(find(ALIASES.refundReason) ?? ''),
+      experienceScore: exp,
+      shipDays,
+    };
+  }
+
+  /* ======================= 聚合计算 ======================= */
+  // KPI 卡片
+  function buildKpiCards(rows, prevRows) {
+    const g = s => sum(s, 'gmv'), n = s => sum(s, 'netSales'), r = s => sum(s, 'refundAmount'),
+          o = s => sum(s, 'orderCount'), a = s => sum(s, 'adCost'), c = s => sum(s, 'goodsCost');
+    const cur = { gmv: g(rows), net: n(rows), refund: r(rows), orders: o(rows), ad: a(rows), cost: c(rows) };
+    const pre = prevRows.length ? { gmv: g(prevRows), net: n(prevRows), refund: r(prevRows), orders: o(prevRows), ad: a(prevRows), cost: c(prevRows) } : null;
+    const rate = x => x.gmv ? x.refund / x.gmv : 0;
+    const margin = x => x.net ? (x.net - x.cost) / x.net : 0;
+    const roi = x => x.ad ? x.net / x.ad : 0;
+    const aov = x => x.orders ? x.gmv / x.orders : 0;
+
+    const cards = [
+      { key: 'gmv',     label: 'GMV 成交总额', value: compactMoney(cur.gmv), raw: cur.gmv, fmt: compactMoney, color: 'text-cyan-300',
+        d: deltaText(cur.gmv, pre && pre.gmv) },
+      { key: 'net',     label: '净销售额',     value: compactMoney(cur.net), raw: cur.net, fmt: compactMoney, color: 'text-emerald-300',
+        d: deltaText(cur.net, pre && pre.net) },
+      { key: 'refund',  label: '退款金额',     value: compactMoney(cur.refund), raw: cur.refund, fmt: compactMoney, color: 'text-rose-300',
+        d: deltaText(cur.refund, pre && pre.refund, true) },
+      { key: 'rate',    label: '退款占比',     value: pct(rate(cur)), raw: rate(cur), fmt: pct, color: rate(cur) > 0.12 ? 'text-rose-300' : 'text-amber-300',
+        d: deltaText(rate(cur), pre && rate(pre), true) },
+      { key: 'aov',     label: '客单价',       value: money(aov(cur), 1), raw: aov(cur), fmt: v => money(v, 1), color: 'text-violet-300',
+        d: deltaText(aov(cur), pre && aov(pre)) },
+      { key: 'roi',     label: 'ROI（净销/广告费）', value: cur.ad ? roi(cur).toFixed(2) + 'x' : '—', raw: cur.ad ? roi(cur) : 0,
+        fmt: v => (isFinite(v) && v > 0 ? v.toFixed(2) + 'x' : '—'), color: 'text-cyan-200',
+        d: deltaText(roi(cur), pre && roi(pre)) },
+      { key: 'margin',  label: '毛利率',       value: pct(margin(cur)), raw: margin(cur), fmt: pct, color: margin(cur) >= 0.5 ? 'text-emerald-300' : 'text-amber-300',
+        d: deltaText(margin(cur), pre && margin(pre)) },
+      { key: 'orders',  label: '订单数',       value: fmtInt(cur.orders), raw: cur.orders, fmt: fmtInt, color: 'text-blue-300',
+        d: deltaText(cur.orders, pre && pre.orders) },
+    ];
+    return cards.map(k => ({
+      ...k,
+      valueText: k.value,
+      deltaText: k.d ? k.d.text : null,
+      deltaClass: k.d ? (k.d.good ? 'text-emerald-400' : 'text-rose-400') : '',
+      accentClass: k.d ? (k.d.good ? 'bg-emerald-400/80' : 'bg-rose-400/80') : 'bg-slate-600/60',
+    }));
+  }
+
+  // 各平台 GMV 趋势
+  function trendData(rows, platforms) {
+    const by = {}, dateSet = new Set();
+    for (const r of rows) {
+      dateSet.add(r.date);
+      if (!by[r.platform]) by[r.platform] = {};
+      by[r.platform][r.date] = (by[r.platform][r.date] || 0) + r.gmv;
+    }
+    const dates = [...dateSet].sort();
+    const series = {};
+    for (const p of platforms) {
+      series[p] = dates.map(d => Math.round((by[p] ? by[p][d] : 0) * 100) / 100);
+    }
+    return { dates, series };
+  }
+
+  // 平台维度聚合
+  function byPlatform(rows, platforms, key) {
+    const m = {};
+    platforms.forEach(p => m[p] = 0);
+    for (const r of rows) if (m[r.platform] != null) m[r.platform] += r[key] || 0;
+    return m;
+  }
+
+  /* ======================= 图表配置 ======================= */
+  const FONT_FAMILY = '"IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei", sans-serif';
+  const AXIS_LABEL = { color: '#94a3b8', fontSize: 12 };
+  const SPLIT_LINE = { lineStyle: { color: 'rgba(148,163,184,0.12)' } };
+  const AXIS_LINE = { lineStyle: { color: 'rgba(148,163,184,0.2)' } };
+  const LEGEND = { top: 0, textStyle: { color: '#94a3b8', fontSize: 12 }, itemWidth: 14, itemHeight: 8, icon: 'roundRect' };
+  const TOOLTIP_AXIS = {
+    trigger: 'axis', backgroundColor: 'rgba(15,23,42,0.92)', borderColor: 'rgba(148,163,184,0.25)',
+    textStyle: { color: '#e2e8f0', fontSize: 12 },
+    valueFormatter: v => compactMoney(v),
+  };
+
+  function grad(from, to) {
+    return new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+      { offset: 0, color: from }, { offset: 1, color: to },
+    ]);
+  }
+
+  // 空数据图表占位
+  function emptyChartOption(text) {
+    return {
+      title: { text: text || '暂无数据', left: 'center', top: 'middle', textStyle: { color: '#64748b', fontSize: 13, fontWeight: 400 } },
+      tooltip: { show: false }, legend: { show: false },
+      xAxis: { show: false }, yAxis: { show: false }, series: [],
+    };
+  }
+
+  // 1) 各平台 GMV 趋势
+  function trendOption(d, platforms) {
+    return {
+      tooltip: TOOLTIP_AXIS,
+      legend: LEGEND,
+      grid: { left: 8, right: 16, top: 34, bottom: 0, containLabel: true },
+      xAxis: {
+        type: 'category', boundaryGap: false, data: d.dates.map(x => x.slice(5).replace('-', '/')),
+        axisLine: AXIS_LINE, axisLabel: AXIS_LABEL, axisTick: { show: false },
+      },
+      yAxis: { type: 'value', splitLine: SPLIT_LINE, axisLabel: { ...AXIS_LABEL, formatter: compact } },
+      series: platforms.map(p => ({
+        name: p, type: 'line', smooth: true, symbol: 'none',
+        lineStyle: { width: 2, color: colorOf(p) },
+        areaStyle: { opacity: 0.08, color: colorOf(p) },
+        data: d.series[p] || d.dates.map(() => 0),
+      })),
+    };
+  }
+
+  // 2) 平台销售占比（环形）
+  function shareOption(items, total) {
+    return {
+      tooltip: {
+        trigger: 'item', backgroundColor: 'rgba(15,23,42,0.92)', borderColor: 'rgba(148,163,184,0.25)',
+        textStyle: { color: '#e2e8f0', fontSize: 12 },
+        formatter: p => p.name + '<br/>GMV：' + compactMoney(p.value) + '（' + p.percent + '%）',
+      },
+      legend: { orient: 'vertical', right: 4, top: 'center', textStyle: { color: '#94a3b8', fontSize: 12 }, itemWidth: 10, itemHeight: 10 },
+      graphic: [
+        { type: 'text', left: '34%', top: '43%', style: { text: '总 GMV', fill: '#94a3b8', fontSize: 11, textAlign: 'center' } },
+        { type: 'text', left: '34%', top: '52%', style: { text: compactMoney(total), fill: '#e2e8f0', fontSize: 16, fontWeight: 600, textAlign: 'center' } },
+      ],
+      series: [{
+        type: 'pie', radius: ['52%', '72%'], center: ['34%', '50%'], avoidLabelOverlap: true,
+        itemStyle: { borderColor: '#0a1120', borderWidth: 2, borderRadius: 4 },
+        label: { show: false },
+        emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold', color: '#e2e8f0', formatter: '{b}\n{d}%' } },
+        data: items,
+      }],
+    };
+  }
+
+  // 3) 各平台业绩对比（多柱状）
+  function compareOption(d, platforms) {
+    return {
+      tooltip: TOOLTIP_AXIS,
+      legend: LEGEND,
+      grid: { left: 8, right: 12, top: 34, bottom: 0, containLabel: true },
+      xAxis: { type: 'category', data: platforms, axisLine: AXIS_LINE, axisLabel: AXIS_LABEL, axisTick: { show: false } },
+      yAxis: { type: 'value', splitLine: SPLIT_LINE, axisLabel: { ...AXIS_LABEL, formatter: compact } },
+      series: [
+        { name: 'GMV', type: 'bar', barMaxWidth: 22, data: platforms.map(p => Math.round(d.gmv[p] * 100) / 100),
+          itemStyle: { borderRadius: [4, 4, 0, 0], color: grad('rgba(34,211,238,0.95)', 'rgba(59,130,246,0.55)') } },
+        { name: '净销售额', type: 'bar', barMaxWidth: 22, data: platforms.map(p => Math.round(d.net[p] * 100) / 100),
+          itemStyle: { borderRadius: [4, 4, 0, 0], color: grad('rgba(167,139,250,0.95)', 'rgba(139,92,246,0.45)') } },
+      ],
+    };
+  }
+
+  // 4a) 各平台退款率
+  function refundRateOption(d, platforms) {
+    return {
+      tooltip: {
+        trigger: 'axis', backgroundColor: 'rgba(15,23,42,0.92)', borderColor: 'rgba(148,163,184,0.25)',
+        textStyle: { color: '#e2e8f0', fontSize: 12 },
+        valueFormatter: v => (v * 100).toFixed(1) + '%',
+      },
+      grid: { left: 8, right: 12, top: 24, bottom: 0, containLabel: true },
+      xAxis: { type: 'category', data: platforms, axisLine: AXIS_LINE, axisLabel: { ...AXIS_LABEL, interval: 0 }, axisTick: { show: false } },
+      yAxis: { type: 'value', max: 0.3, splitLine: SPLIT_LINE, axisLabel: { ...AXIS_LABEL, formatter: v => (v * 100).toFixed(0) + '%' } },
+      series: [{
+        name: '退款率', type: 'bar', barMaxWidth: 20,
+        data: platforms.map(p => ({
+          value: Math.round(d.rate[p] * 10000) / 10000,
+          itemStyle: { color: d.rate[p] > 0.12 ? '#f43f5e' : 'rgba(251,146,60,0.85)', borderRadius: [4, 4, 0, 0] },
+        })),
+        label: { show: true, position: 'top', fontSize: 11, color: '#e2e8f0', formatter: p => (p.value * 100).toFixed(1) + '%' },
+      }],
+    };
+  }
+
+  // 4b) 退款原因分布
+  function reasonOption(items) {
+    return {
+      tooltip: {
+        trigger: 'item', backgroundColor: 'rgba(15,23,42,0.92)', borderColor: 'rgba(148,163,184,0.25)',
+        textStyle: { color: '#e2e8f0', fontSize: 12 },
+        formatter: p => p.name + '<br/>退款：' + compactMoney(p.value) + '（' + p.percent + '%）',
+      },
+      legend: { bottom: 0, textStyle: { color: '#94a3b8', fontSize: 11 }, itemWidth: 10, itemHeight: 10 },
+      series: [{
+        type: 'pie', radius: ['30%', '58%'], center: ['50%', '44%'],
+        itemStyle: { borderColor: '#0a1120', borderWidth: 2, borderRadius: 3 },
+        label: { show: true, fontSize: 11, color: '#cbd5e1', formatter: '{b} {d}%' },
+        data: items,
+      }],
+    };
+  }
+
+  // 5) 新老客贡献（堆叠柱状）
+  function customerOption(d, platforms) {
+    return {
+      tooltip: TOOLTIP_AXIS,
+      legend: LEGEND,
+      grid: { left: 8, right: 12, top: 34, bottom: 0, containLabel: true },
+      xAxis: { type: 'category', data: platforms, axisLine: AXIS_LINE, axisLabel: AXIS_LABEL, axisTick: { show: false } },
+      yAxis: { type: 'value', splitLine: SPLIT_LINE, axisLabel: { ...AXIS_LABEL, formatter: compact } },
+      series: [
+        { name: '新客 GMV', type: 'bar', stack: 't', barMaxWidth: 24, data: platforms.map(p => Math.round(d.fresh[p])),
+          itemStyle: { color: grad('rgba(34,211,238,0.95)', 'rgba(34,211,238,0.5)'), borderRadius: [0, 0, 0, 0] } },
+        { name: '老客 GMV', type: 'bar', stack: 't', barMaxWidth: 24, data: platforms.map(p => Math.round(d.old[p])),
+          itemStyle: { color: grad('rgba(167,139,250,0.95)', 'rgba(167,139,250,0.45)'), borderRadius: [4, 4, 0, 0] } },
+      ],
+    };
+  }
+
+  // 6) 各平台体验分（横向条形 + 4.3 预警线）
+  function experienceOption(d, platforms) {
+    const list = [...platforms].reverse(); // 横向条形图自下而上
+    return {
+      tooltip: {
+        trigger: 'axis', backgroundColor: 'rgba(15,23,42,0.92)', borderColor: 'rgba(148,163,184,0.25)',
+        textStyle: { color: '#e2e8f0', fontSize: 12 },
+        valueFormatter: v => Number(v).toFixed(2) + ' 分',
+      },
+      grid: { left: 8, right: 56, top: 8, bottom: 0, containLabel: true },
+      xAxis: { type: 'value', min: 3.5, max: 5, splitLine: SPLIT_LINE, axisLabel: { ...AXIS_LABEL, formatter: v => v.toFixed(1) } },
+      yAxis: { type: 'category', data: list, axisLine: AXIS_LINE, axisLabel: AXIS_LABEL, axisTick: { show: false } },
+      series: [{
+        type: 'bar', barWidth: 14,
+        data: list.map(p => {
+          const v = d[p];
+          const color = v < 4.3 ? '#f43f5e' : v < 4.5 ? '#fbbf24' : '#34d399';
+          return { value: v, itemStyle: { color, borderRadius: [0, 4, 4, 0] } };
+        }),
+        label: { show: true, position: 'right', fontSize: 11, color: '#e2e8f0', formatter: p => p.value.toFixed(2) },
+        markLine: {
+          symbol: 'none', silent: true,
+          lineStyle: { color: '#f43f5e', type: 'dashed' },
+          label: { formatter: '4.3 预警', color: '#f43f5e', fontSize: 10, position: 'insideEndTop' },
+          data: [{ xAxis: 4.3 }],
+        },
+      }],
+    };
+  }
+
+  /* ======================= Vue 应用 ======================= */
+  const app = createApp({
+    data() {
+      return {
+        PLATFORMS,
+        allRows: [], // 标准化后的全部明细行
+        filters: {
+          startDate: '2026-06-01',
+          endDate: '2026-07-31',
+          platforms: [...PLATFORMS],
+          shop: '全部店铺',
+          category: '全部品类',
+          customer: '全部',
+        },
+        toast: { show: false, msg: '', error: false, timer: null },
+        charts: {}, // ECharts 实例注册表
+        now: new Date(),   // 顶部实时时钟
+        clockTimer: null,
+        prevKpiRaw: {},    // KPI 数字滚动动画的上一次数值
+      };
+    },
+
+    computed: {
+      // 数据中出现的全部平台（支持导入任意平台名）
+      allPlatforms() {
+        const s = new Set(PLATFORMS);
+        this.allRows.forEach(r => s.add(r.platform));
+        return [...s];
+      },
+      allCategories() {
+        const s = new Set(CATEGORIES);
+        this.allRows.forEach(r => s.add(r.category));
+        return [...s];
+      },
+      // 店铺选项：仅列当前已选平台下的店铺
+      shopOptions() {
+        const set = new Set();
+        this.allRows.forEach(r => {
+          if (this.filters.platforms.includes(r.platform)) set.add(r.shop);
+        });
+        return [...set].sort();
+      },
+      // 筛选后的明细行（所有卡片 / 图表 / 表格的数据源）
+      filteredRows() {
+        const f = this.filters;
+        return this.allRows.filter(r =>
+          r.date >= f.startDate && r.date <= f.endDate &&
+          f.platforms.includes(r.platform) &&
+          (f.shop === '全部店铺' || r.shop === f.shop) &&
+          (f.category === '全部品类' || r.category === f.category) &&
+          (f.customer === '全部' || r.customerType === f.customer)
+        );
+      },
+      // 上一周期（用于环比）
+      prevRows() {
+        const f = this.filters;
+        if (!this.allRows.length) return [];
+        const len = diffDays(f.startDate, f.endDate) + 1;
+        const prevStart = addDays(f.startDate, -len);
+        const prevEnd = addDays(f.startDate, -1);
+        return this.allRows.filter(r =>
+          r.date >= prevStart && r.date <= prevEnd &&
+          f.platforms.includes(r.platform) &&
+          (f.shop === '全部店铺' || r.shop === f.shop) &&
+          (f.category === '全部品类' || r.category === f.category) &&
+          (f.customer === '全部' || r.customerType === f.customer)
+        );
+      },
+      kpiCards() { return buildKpiCards(this.filteredRows, this.prevRows); },
+      // KPI 每日趋势（供卡片迷你趋势线使用）
+      kpiSpark() {
+        const by = {};
+        for (const r of this.filteredRows) {
+          if (!by[r.date]) by[r.date] = { gmv: 0, net: 0, refund: 0, orders: 0, ad: 0, cost: 0 };
+          const d = by[r.date];
+          d.gmv += r.gmv; d.net += r.netSales; d.refund += r.refundAmount;
+          d.orders += r.orderCount; d.ad += r.adCost; d.cost += r.goodsCost;
+        }
+        const dates = Object.keys(by).sort();
+        const out = { gmv: [], net: [], refund: [], rate: [], aov: [], roi: [], margin: [], orders: [] };
+        for (const dt of dates) {
+          const d = by[dt];
+          out.gmv.push(d.gmv);
+          out.net.push(d.net);
+          out.refund.push(d.refund);
+          out.rate.push(d.gmv ? d.refund / d.gmv : 0);
+          out.aov.push(d.orders ? d.gmv / d.orders : 0);
+          out.roi.push(d.ad ? d.net / d.ad : 0);
+          out.margin.push(d.net ? (d.net - d.cost) / d.net : 0);
+          out.orders.push(d.orders);
+        }
+        return out;
+      },
+      // 平台 GMV 占比信号条（占比即形状）
+      shareSegments() {
+        const share = this.chartData.share;
+        if (!share.total) return [];
+        return share.items.map(x => ({
+          name: x.name, color: colorOf(x.name), pct: (x.value / share.total) * 100,
+        }));
+      },
+      signalBarTotal() { return compactMoney(this.chartData.share.total); },
+      signalBarLabel() { return this.shareSegments.map(s => s.name + ' ' + s.pct.toFixed(1) + '%').join('，'); },
+      statsText() {
+        const f = this.filters;
+        const parts = [f.startDate + ' ~ ' + f.endDate];
+        if (f.platforms.length < this.allPlatforms.length) parts.push(f.platforms.join('/'));
+        if (f.shop !== '全部店铺') parts.push(f.shop);
+        if (f.category !== '全部品类') parts.push(f.category);
+        if (f.customer !== '全部') parts.push(f.customer);
+        return '当前筛选：' + parts.join(' · ') + '　｜　显示 ' + this.filteredRows.length + ' 行 / 共 ' + this.allRows.length + ' 行明细';
+      },
+
+      // 图表数据聚合
+      chartData() {
+        const rows = this.filteredRows;
+        const ps = this.filters.platforms;
+        const gmv = byPlatform(rows, ps, 'gmv');
+        const net = byPlatform(rows, ps, 'netSales');
+        const refund = byPlatform(rows, ps, 'refundAmount');
+
+        // 新老客分平台
+        const freshMap = {}, oldMap = {};
+        ps.forEach(p => { freshMap[p] = 0; oldMap[p] = 0; });
+        rows.forEach(r => {
+          if (r.customerType === '新客') freshMap[r.platform] += r.gmv;
+          else oldMap[r.platform] += r.gmv;
+        });
+
+        // 退款原因
+        const reasonMap = {};
+        rows.forEach(r => {
+          if (r.refundAmount > 0) reasonMap[r.refundReason || '其他'] = (reasonMap[r.refundReason || '其他'] || 0) + r.refundAmount;
+        });
+
+        // 体验分
+        const expMap = {}, expN = {};
+        ps.forEach(p => { expMap[p] = 0; expN[p] = 0; });
+        rows.forEach(r => { expMap[r.platform] += r.experienceScore || 0; expN[r.platform]++; });
+
+        const shareTotal = ps.reduce((s, p) => s + (gmv[p] || 0), 0);
+        const reasonColors = ['#f43f5e', '#fb7185', '#f97316', '#fbbf24', '#a78bfa', '#94a3b8'];
+
+        return {
+          trend: trendData(rows, ps),
+          share: {
+            total: shareTotal,
+            items: ps.map(p => ({ name: p, value: Math.round(gmv[p] * 100) / 100, itemStyle: { color: colorOf(p) } })).filter(x => x.value > 0),
+          },
+          compare: { gmv, net },
+          refundRate: {
+            rate: ps.reduce((m, p) => { m[p] = gmv[p] ? refund[p] / gmv[p] : 0; return m; }, {}),
+          },
+          reason: {
+            items: Object.entries(reasonMap).map(([name, value], i) => ({
+              name, value: Math.round(value * 100) / 100,
+              itemStyle: { color: reasonColors[i % reasonColors.length] },
+            })).sort((a, b) => b.value - a.value),
+          },
+          customer: { fresh: freshMap, old: oldMap },
+          experience: ps.reduce((m, p) => { m[p] = expN[p] ? Math.round((expMap[p] / expN[p]) * 100) / 100 : 0; return m; }, {}),
+        };
+      },
+
+      // 店铺健康数
+      storeHealth() {
+        const map = {};
+        for (const r of this.filteredRows) {
+          const k = r.shop;
+          if (!map[k]) map[k] = { shop: r.shop, platform: r.platform, orders: 0, gmv: 0, refund: 0, shipSum: 0, expSum: 0, n: 0 };
+          const m = map[k];
+          m.orders += r.orderCount; m.gmv += r.gmv; m.refund += r.refundAmount;
+          m.shipSum += r.shipDays; m.expSum += r.experienceScore; m.n++;
+        }
+        return Object.values(map)
+          .map(m => {
+            const refundRate = m.gmv ? m.refund / m.gmv : 0;
+            const shipDays = m.shipSum / m.n;
+            const exp = m.expSum / m.n;
+            const warnings = [];
+            if (refundRate > 0.12) warnings.push('退款率高');
+            if (shipDays > 2.2) warnings.push('发货超时');
+            if (exp < 4.3) warnings.push('体验分低');
+            return { shop: m.shop, platform: m.platform, orders: m.orders, gmv: m.gmv, refundRate, shipDays, exp, warnings };
+          })
+          .sort((a, b) => b.gmv - a.gmv);
+      },
+      warnCount() { return this.storeHealth.filter(s => s.warnings.length).length; },
+
+      // 商品销售 TOP
+      productTop() {
+        const map = {};
+        for (const r of this.filteredRows) {
+          const k = r.productName;
+          if (!map[k]) map[k] = { product: r.productName, category: r.category, platforms: new Set(), units: 0, gmv: 0, refund: 0, cost: 0, net: 0 };
+          const m = map[k];
+          m.platforms.add(r.platform); m.units += r.units; m.gmv += r.gmv; m.refund += r.refundAmount;
+          m.cost += r.goodsCost; m.net += r.netSales;
+        }
+        return Object.values(map)
+          .map(m => ({
+            product: m.product, category: m.category,
+            platforms: [...m.platforms].join('/'),
+            units: m.units, gmv: m.gmv,
+            refundRate: m.gmv ? m.refund / m.gmv : 0,
+            margin: m.net ? (m.net - m.cost) / m.net : 0,
+          }))
+          .sort((a, b) => b.gmv - a.gmv)
+          .slice(0, 20);
+      },
+    },
+
+    watch: {
+      // 平台选择变化后，保证店铺筛选仍合法
+      'filters.platforms'() {
+        if (this.filters.shop !== '全部店铺' && !this.shopOptions.includes(this.filters.shop)) {
+          this.filters.shop = '全部店铺';
+        }
+      },
+      // 任一筛选变化 → 刷新全部图表（实时联动核心）
+      filteredRows() {
+        nextTick(() => this.renderAllCharts());
+      },
+      // KPI 数值变化 → 数字滚动动画（尊重减少动态效果）
+      kpiCards(nv) {
+        nextTick(() => {
+          const els = this.$refs.kpiValue || [];
+          const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          nv.forEach((k, i) => {
+            const el = els[i];
+            const prev = this.prevKpiRaw[k.key];
+            if (el && prev !== k.raw) {
+              this.countUp(el, prev === undefined ? 0 : prev, k.raw, k.fmt, reduced ? 0 : 700);
+            }
+            this.prevKpiRaw[k.key] = k.raw;
+          });
+        });
+      },
+    },
+
+    mounted() {
+      this.loadSample();
+      window.addEventListener('resize', this.resizeCharts);
+      this.clockTimer = setInterval(() => { this.now = new Date(); }, 1000);
+      // 字体就绪后重绘图表，让 canvas 文字用上新字体
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => this.renderAllCharts());
+      }
+    },
+    beforeUnmount() {
+      clearInterval(this.clockTimer);
+      window.removeEventListener('resize', this.resizeCharts);
+      Object.values(this.charts).forEach(c => c.dispose());
+    },
+
+    methods: {
+      /* ---------- 通用 ---------- */
+      fmtInt, pct, compactMoney, colorOf,
+
+      /* ---------- 实时时钟 ---------- */
+      clock() {
+        const d = this.now;
+        return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+      },
+
+      /* ---------- KPI 数字滚动动画 ---------- */
+      countUp(el, from, to, fmt, dur) {
+        if (dur <= 0 || from === to) { el.textContent = fmt(to); return; }
+        const start = performance.now();
+        const tick = (t) => {
+          const p = Math.min(1, (t - start) / dur);
+          const eased = 1 - Math.pow(1 - p, 3);
+          el.textContent = fmt(from + (to - from) * eased);
+          if (p < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      },
+
+      /* ---------- KPI 迷你趋势线 ---------- */
+      sparkData(key) {
+        const s = this.kpiSpark[key];
+        if (!s || !s.length) return null;
+        const W = 100, H = 24, PAD = 2;
+        let min = Infinity, max = -Infinity;
+        for (const v of s) { if (v < min) min = v; if (v > max) max = v; }
+        if (!isFinite(min) || !isFinite(max)) return null;
+        if (min === max) max = min + Math.max(1e-9, Math.abs(min) * 0.01);
+        const span = max - min;
+        const n = s.length;
+        const step = n > 1 ? (W - PAD * 2) / (n - 1) : 0;
+        const pts = s.map((v, i) => {
+          const x = n > 1 ? PAD + i * step : W / 2;
+          const y = H - PAD - ((v - min) / span) * (H - PAD * 2);
+          return [x, y];
+        });
+        const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(2) + ',' + p[1].toFixed(2)).join(' ');
+        const area = line + ' L' + pts[n - 1][0].toFixed(2) + ',' + (H - 1) + ' L' + pts[0][0].toFixed(2) + ',' + (H - 1) + ' Z';
+        return { line, area };
+      },
+      sparkPath(key) { const s = this.sparkData(key); return s ? s.line : ''; },
+      sparkArea(key) { const s = this.sparkData(key); return s ? s.area : ''; },
+      sparkTitle(k) {
+        const s = this.kpiSpark[k.key];
+        if (!s || !s.length) return '';
+        return '首日 ' + k.fmt(s[0]) + ' → 末日 ' + k.fmt(s[s.length - 1]);
+      },
+
+      showToast(msg, error) {
+        this.toast = { show: true, msg, error: !!error };
+        clearTimeout(this.toast.timer);
+        this.toast.timer = setTimeout(() => { this.toast.show = false; }, 3200);
+      },
+
+      /* ---------- 数据加载 ---------- */
+      loadSample() {
+        this.allRows = makeSampleData();
+        this.resetFilters();
+        this.showToast('已恢复示例数据：' + this.allRows.length + ' 行（6 平台 × 12 店铺 × 61 天）');
+      },
+
+      resetFilters() {
+        if (!this.allRows.length) return;
+        const dates = this.allRows.map(r => r.date).sort();
+        this.filters.startDate = dates[0];
+        this.filters.endDate = dates[dates.length - 1];
+        this.filters.platforms = [...new Set(this.allRows.map(r => r.platform))];
+        this.filters.shop = '全部店铺';
+        this.filters.category = '全部品类';
+        this.filters.customer = '全部';
+      },
+
+      openFilePicker() { this.$refs.fileInput.click(); },
+
+      onFileChange(e) {
+        const file = e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+          try {
+            const wb = XLSX.read(ev.target.result, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
+            if (!raw.length) throw new Error('表格为空或没有数据行');
+
+            const mapped = [];
+            let skipped = 0;
+            raw.forEach((r, i) => {
+              try { mapped.push(normalizeRow(r, i + 2)); }
+              catch (err) { skipped++; }
+            });
+            if (!mapped.length) throw new Error('未能识别出有效数据（需包含“日期”和“成交金额”列）');
+
+            this.allRows = mapped;
+            this.resetFilters();
+            this.showToast('导入成功：' + mapped.length + ' 行' + (skipped ? '（跳过 ' + skipped + ' 行异常数据）' : ''));
+          } catch (err) {
+            this.showToast('导入失败：' + err.message, true);
+          }
+        };
+        reader.onerror = () => this.showToast('文件读取失败', true);
+        reader.readAsArrayBuffer(file);
+      },
+
+      togglePlatform(p) {
+        const i = this.filters.platforms.indexOf(p);
+        if (i >= 0) {
+          if (this.filters.platforms.length === 1) return; // 至少保留一个平台
+          this.filters.platforms.splice(i, 1);
+        } else {
+          this.filters.platforms.push(p);
+        }
+        this.filters.platforms = [...this.filters.platforms]; // 触发响应式更新
+      },
+
+      /* ---------- 图表 ---------- */
+      renderAllCharts() {
+        if (!this.filteredRows.length) {
+          Object.values(this.charts).forEach(c => c.dispose());
+          this.charts = {};
+          const t = this.allRows.length ? '当前筛选条件下暂无数据' : '暂无数据';
+          ['chartTrend','chartShare','chartCompare','chartRefundRate','chartRefundReason','chartCustomer','chartExperience']
+            .forEach(r => this.setChart(r, emptyChartOption(t)));
+          return;
+        }
+        const d = this.chartData;
+        const ps = this.filters.platforms;
+        this.setChart('chartTrend', trendOption(d.trend, ps));
+        this.setChart('chartShare', shareOption(d.share.items, d.share.total));
+        this.setChart('chartCompare', compareOption(d.compare, ps));
+        this.setChart('chartRefundRate', refundRateOption(d.refundRate, ps));
+        this.setChart('chartRefundReason', reasonOption(d.reason.items));
+        this.setChart('chartCustomer', customerOption(d.customer, ps));
+        this.setChart('chartExperience', experienceOption(d.experience, ps));
+      },
+      setChart(ref, option) {
+        const el = this.$refs[ref];
+        if (!el) return;
+        let chart = echarts.getInstanceByDom(el);
+        if (!chart) chart = echarts.init(el, null, { renderer: 'canvas' });
+        const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        option.animation = !reduced;
+        option.animationDuration = reduced ? 0 : 450;
+        option.animationEasing = 'cubicOut';
+        option.textStyle = { fontFamily: FONT_FAMILY };
+        chart.setOption(option, true); // notMerge=true 全量替换
+        this.charts[ref] = chart;
+      },
+      resizeCharts() { Object.values(this.charts).forEach(c => c.resize()); },
+    },
+  });
+
+  app.mount('#app');
+})();
+</script>
+</body>
+</html>
