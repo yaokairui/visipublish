@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>商品评价分析·声量洞察看板</title>
+
+<!-- 本地优先加载依赖（reviews/frontend/libs/），缺失时回退 CDN -->
+<script src="libs/vue.global.prod.js"></script>
+<script>if (!window.Vue) document.write('<script src="https://unpkg.com/vue@3.4.38/dist/vue.global.prod.js"><\/script>');</script>
+<script src="libs/echarts.min.js"></script>
+<script>if (!window.echarts) document.write('<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"><\/script>');</script>
+<script src="libs/echarts-wordcloud.min.js"></script>
+<script src="libs/xlsx.full.min.js"></script>
+<script>if (!window.XLSX) document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"><\/script>');</script>
+<script src="libs/tailwind.js"></script>
+<script>if (!window.tailwind) document.write('<script src="https://cdn.tailwindcss.com"><\/script>');</script>
+
+<script>
+  if (window.tailwind) {
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '"PingFang SC"', '"Microsoft YaHei"', 'system-ui', 'sans-serif'],
+            mono: ['ui-monospace', 'Consolas', 'monospace'],
+          },
+          colors: {
+            brand: { DEFAULT: '#2563eb', light: '#3b82f6', soft: '#eff6ff' },
+            pos:  { DEFAULT: '#10b981', soft: '#ecfdf5' },
+            neg:  { DEFAULT: '#f43f5e', soft: '#fff1f2' },
+          },
+        },
+      },
+    };
+  }
+</script>
+
+<style type="text/tailwindcss">
+  .card      { @apply rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04)]; }
+  .input     { @apply rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-brand focus:ring-2 focus:ring-brand/15; }
+  .filter-label { @apply mb-1 block text-[10px] font-medium uppercase tracking-wider text-slate-400; }
+  .btn-primary  { @apply inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-xs font-semibold text-white hover:bg-brand-light transition-colors; }
+  .btn-secondary{ @apply inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors; }
+  .panel-title  { @apply flex items-center justify-between text-sm font-semibold text-slate-800; }
+  .panel-sub    { @apply text-[10px] font-normal text-slate-400; }
+  .kpi-label    { @apply text-[11px] text-slate-500; }
+  .kpi-value    { @apply mt-1.5 font-mono text-2xl font-bold tabular-nums; }
+  .tag          { @apply inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500; }
+  .th           { @apply px-3 py-2 text-left text-[11px] font-semibold text-slate-500 whitespace-nowrap; }
+  .td           { @apply px-3 py-2 text-xs text-slate-600 whitespace-nowrap; }
+</style>
+
+<style>
+  /* 科技蓝/白 SaaS 风格：全局背景与滚动条 */
+  body { background: #f4f6fb; }
+  [v-cloak] { display: none !important; }
+  :focus-visible { outline: 2px solid rgba(37,99,235,.7); outline-offset: 2px; border-radius: 6px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  .table-wrap { max-height: 420px; overflow: auto; }
+  .table-wrap::-webkit-scrollbar { width: 8px; height: 8px; }
+  .table-wrap::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  .table-wrap thead th { position: sticky; top: 0; background: #f8fafc; z-index: 5; }
+
+  /* 涨跌：按需求「绿降红升」 */
+  .delta-up   { color: #f43f5e; }
+  .delta-down { color: #10b981; }
+
+  /* 软进度条 */
+  .progress { height: 6px; border-radius: 9999px; background: #eef2f7; overflow: hidden; }
+  .progress > i { display: block; height: 100%; border-radius: 9999px; }
+</style>
+</head>
+
+<body class="text-slate-800 antialiased">
+<div id="app" v-cloak class="min-h-dvh">
+
+  <!-- ============ 1. 顶部：标题 + 操作按钮 ============ -->
+  <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
+    <div class="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3 px-4 py-3 lg:px-6">
+      <div class="flex items-center gap-3">
+        <div class="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-brand to-sky-400 text-white shadow-sm">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        </div>
+        <div>
+          <h1 class="text-base font-bold tracking-wide sm:text-lg">商品评价分析·声量洞察看板</h1>
+          <p class="text-[11px] text-slate-400">Review Insights · 数据本地解析，不上传</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="btn-secondary" @click="loadDemo" title="载入内置模拟数据">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          载入模拟数据
+        </button>
+        <button class="btn-secondary" @click="showPaste = true" title="每行一条评价，可选 [N星] 前缀">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+          粘贴文本
+        </button>
+        <button class="btn-primary" @click="openFilePicker" title="选择本地的 .xlsx / .csv 评价明细">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>
+          上传 Excel 明细
+        </button>
+        <input ref="fileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" @change="onFileChange" />
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-[1400px] space-y-4 px-4 py-4 lg:px-6">
+
+    <!-- ============ 2. 全局筛选栏 ============ -->
+    <section class="card p-4">
+      <div class="flex flex-wrap items-end gap-x-5 gap-y-3">
+        <div class="flex items-end gap-2">
+          <div>
+            <label class="filter-label">开始日期</label>
+            <input type="date" class="input" v-model="filters.startDate" :max="filters.endDate" />
+          </div>
+          <span class="pb-2 text-slate-400">—</span>
+          <div>
+            <label class="filter-label">结束日期</label>
+            <input type="date" class="input" v-model="filters.endDate" :min="filters.startDate" />
+          </div>
+        </div>
+        <div>
+          <label class="filter-label">平台</label>
+          <select class="input" v-model="filters.platform">
+            <option value="全部平台">全部平台</option>
+            <option v-for="p in platformOptions" :key="p" :value="p">{{ p }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="filter-label">店铺</label>
+          <select class="input" v-model="filters.shop">
+            <option value="全部店铺">全部店铺</option>
+            <option v-for="s in shopOptions" :key="s" :value="s">{{ s }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="filter-label">品类</label>
+          <select class="input" v-model="filters.category">
+            <option value="全部品类">全部品类</option>
+            <option v-for="c in categoryOptions" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="filter-label">商品编码</label>
+          <select class="input min-w-[180px]" v-model="filters.productCode">
+            <option value="全部编码">全部编码</option>
+            <option v-for="p in productOptions" :key="p.code" :value="p.code">{{ p.code }} · {{ p.name }}</option>
+          </select>
+        </div>
+        <button class="btn-secondary" @click="resetFilters">重置筛选</button>
+      </div>
+      <p class="mt-3 border-t border-slate-100 pt-2.5 text-[11px] text-slate-500">
+        数据摘要：评论 {{ summary.total }} 条 · 观点 {{ viewpointCount }} 条 · 时间 {{ summaryRange }} · 平台 {{ platformCount }} 个 · 店铺 {{ shopCount }} 家
+      </p>
+    </section>
+
+    <!-- ============ 3. 商品评价总览：8 个核心指标（2 行网格） ============ -->
+    <section class="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div v-for="k in kpiCards" :key="k.key" class="card p-3.5">
+        <div class="kpi-label">{{ k.label }}</div>
+        <div class="kpi-value" :class="k.color">{{ k.value }}</div>
+        <div class="mt-1.5 flex items-center gap-1 text-[11px]">
+          <span v-if="k.delta != null" :class="k.delta >= 0 ? 'delta-up' : 'delta-down'">
+            {{ k.delta >= 0 ? '▲' : '▼' }} {{ Math.abs(k.delta).toFixed(1) }}%
+          </span>
+          <span v-else class="text-slate-300">—</span>
+          <span class="text-slate-400">环比上周期</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 4. 情感结构与趋势 ============ -->
+    <section class="card p-4">
+      <div class="panel-title">
+        <span>情感结构与趋势 <span class="panel-sub">正负占比 · 逐日走势</span></span>
+      </div>
+      <div class="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+          <div class="mb-1 text-center text-xs font-medium text-slate-500">观点正负占比</div>
+          <div ref="chartViewpointShare" class="h-[240px]"></div>
+        </div>
+        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+          <div class="mb-1 text-center text-xs font-medium text-slate-500">评价正负占比</div>
+          <div ref="chartReviewShare" class="h-[240px]"></div>
+        </div>
+        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3 lg:col-span-1">
+          <div class="mb-1 text-center text-xs font-medium text-slate-500">商品评价趋势图（多维度）</div>
+          <div ref="chartTrend" class="h-[240px]"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 5. 观点声量洞察 ============ -->
+    <section class="card p-4">
+      <div class="panel-title">
+        <span>观点声量洞察 <span class="panel-sub">标签排名 · 词云分布 · 负面趋势</span></span>
+      </div>
+      <div class="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <!-- 观点标签排名 -->
+        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3 lg:col-span-2">
+          <div class="mb-2 flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-600">观点标签排名</span>
+            <div class="flex overflow-hidden rounded-lg border border-slate-200 text-[11px]">
+              <button v-for="m in ['负面', '正面', '整体']" :key="m" @click="tagMode = m"
+                      class="px-2.5 py-1 transition-colors"
+                      :class="tagMode === m ? 'bg-brand text-white' : 'bg-white text-slate-500 hover:bg-slate-50'">{{ m }}</button>
+            </div>
+          </div>
+          <div class="table-wrap" style="max-height:300px">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="border-b border-slate-100">
+                  <th class="th !py-1.5">#</th>
+                  <th class="th !py-1.5">观点标签</th>
+                  <th class="th !py-1.5 w-32">占比</th>
+                  <th class="th !py-1.5 text-right">观点数</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(t, i) in tagRanking" :key="t.label" class="border-b border-slate-50">
+                  <td class="td !py-1.5 font-mono text-slate-400">{{ i + 1 }}</td>
+                  <td class="td !py-1.5 font-medium text-slate-700">
+                    <span class="mr-1.5 inline-block h-2 w-2 rounded-full" :style="{ background: t.color }"></span>
+                    {{ t.label }}
+                  </td>
+                  <td class="td !py-1.5">
+                    <div class="progress"><i :style="{ width: t.pct + '%', background: t.color }"></i></div>
+                  </td>
+                  <td class="td !py-1.5 text-right font-mono">{{ t.count }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 观点词云分布 -->
+        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3 lg:col-span-2">
+          <div class="mb-1 text-xs font-semibold text-slate-600">观点词云分布</div>
+          <div ref="chartWordCloud" class="h-[300px]"></div>
+        </div>
+
+        <!-- 负面评价观点趋势（柱 + 线组合） -->
+        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+          <div class="mb-1 text-xs font-semibold text-slate-600">负面评价观点趋势</div>
+          <div ref="chartNegTrend" class="h-[300px]"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 6. 观点词频概况 ============ -->
+    <section class="card p-4">
+      <div class="panel-title">
+        <span>观点词频概况 <span class="panel-sub">属性情感对比 · 观点词频明细</span></span>
+      </div>
+      <div class="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3 lg:col-span-2">
+          <div class="mb-1 text-xs font-semibold text-slate-600">属性情感对比（肤感 / 气味 / 使用感 / 价格…）</div>
+          <div ref="chartAspect" class="h-[300px]"></div>
+        </div>
+        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3 lg:col-span-3">
+          <div class="mb-1 text-xs font-semibold text-slate-600">观点词频数量</div>
+          <div class="table-wrap" style="max-height:300px">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="border-b border-slate-100">
+                  <th class="th !py-1.5">排名</th>
+                  <th class="th !py-1.5">观点</th>
+                  <th class="th !py-1.5">观点类别</th>
+                  <th class="th !py-1.5">属性</th>
+                  <th class="th !py-1.5">一级标签</th>
+                  <th class="th !py-1.5 text-right">正面数</th>
+                  <th class="th !py-1.5 text-right">负面数</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(w, i) in wordFreq" :key="w.aspect + w.sentiment" class="border-b border-slate-50">
+                  <td class="td !py-1.5 font-mono text-slate-400">{{ i + 1 }}</td>
+                  <td class="td !py-1.5 font-medium text-slate-700">{{ w.phrase }}</td>
+                  <td class="td !py-1.5">
+                    <span class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium"
+                          :class="w.sentiment === '正面' ? 'bg-pos-soft text-pos' : 'bg-neg-soft text-neg'">{{ w.category }}</span>
+                  </td>
+                  <td class="td !py-1.5">{{ w.aspect }}</td>
+                  <td class="td !py-1.5"><span class="tag">{{ w.group }}</span></td>
+                  <td class="td !py-1.5 text-right font-mono text-pos">{{ w.pos }}</td>
+                  <td class="td !py-1.5 text-right font-mono text-neg">{{ w.neg }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 7. 商品声量洞察 ============ -->
+    <section class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div class="card p-4">
+        <div class="panel-title">
+          <span>负面声量商品排名</span>
+          <span class="panel-sub">观点数降序 · 前 10</span>
+        </div>
+        <div class="table-wrap mt-2">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="border-b border-slate-100">
+                <th class="th">排名</th>
+                <th class="th">店铺</th>
+                <th class="th">商品名称</th>
+                <th class="th w-40">情感结构</th>
+                <th class="th text-right">观点数</th>
+                <th class="th text-center">情感标签</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(g, i) in productRank.neg" :key="g.code" class="border-b border-slate-50">
+                <td class="td font-mono text-slate-400">{{ i + 1 }}</td>
+                <td class="td">{{ g.shop }}</td>
+                <td class="td font-medium text-slate-700">{{ g.name }}</td>
+                <td class="td">
+                  <div class="flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <i class="block h-full bg-neg" :style="{ width: g.negShare + '%' }"></i>
+                    <i class="block h-full bg-pos" :style="{ width: g.posShare + '%' }"></i>
+                  </div>
+                </td>
+                <td class="td text-right font-mono">{{ g.total }}</td>
+                <td class="td text-center">
+                  <span class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium"
+                        :class="g.neg >= g.pos ? 'bg-neg-soft text-neg' : 'bg-pos-soft text-pos'">{{ g.neg >= g.pos ? '负面' : '正面' }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card p-4">
+        <div class="panel-title">
+          <span>正面声量商品排名</span>
+          <span class="panel-sub">观点数降序 · 前 10</span>
+        </div>
+        <div class="table-wrap mt-2">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="border-b border-slate-100">
+                <th class="th">排名</th>
+                <th class="th">店铺</th>
+                <th class="th">商品名称</th>
+                <th class="th w-40">情感结构</th>
+                <th class="th text-right">观点数</th>
+                <th class="th text-center">情感标签</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(g, i) in productRank.pos" :key="g.code" class="border-b border-slate-50">
+                <td class="td font-mono text-slate-400">{{ i + 1 }}</td>
+                <td class="td">{{ g.shop }}</td>
+                <td class="td font-medium text-slate-700">{{ g.name }}</td>
+                <td class="td">
+                  <div class="flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <i class="block h-full bg-pos" :style="{ width: g.posShare + '%' }"></i>
+                    <i class="block h-full bg-neg" :style="{ width: g.negShare + '%' }"></i>
+                  </div>
+                </td>
+                <td class="td text-right font-mono">{{ g.total }}</td>
+                <td class="td text-center">
+                  <span class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium"
+                        :class="g.pos >= g.neg ? 'bg-pos-soft text-pos' : 'bg-neg-soft text-neg'">{{ g.pos >= g.neg ? '正面' : '负面' }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 8. 空状态与页脚 ============ -->
+    <section v-if="!filteredReviews.length" class="card p-10 text-center">
+      <p class="text-sm font-medium text-slate-500">当前筛选下没有数据</p>
+      <p class="mt-1 text-xs text-slate-400">点右上角「载入模拟数据」，或上传你的 Excel 评价明细。</p>
+    </section>
+
+    <footer class="pb-4 pt-2 text-center text-[11px] text-slate-400">
+      © 2026 VisiPublish · 商品评价分析·声量洞察看板 v1.0 · 数据仅在本机分析，不上传
+    </footer>
+  </main>
+
+  <!-- Toast -->
+  <transition name="toast-fade">
+    <div v-if="toast.show"
+         class="fixed bottom-6 right-6 z-50 max-w-[70vw] rounded-lg border px-4 py-2.5 text-xs shadow-lg"
+         :class="toast.error ? 'border-neg/30 bg-white text-neg' : 'border-pos/30 bg-white text-slate-700'">
+      {{ toast.msg }}
+    </div>
+  </transition>
+
+  <!-- 粘贴文本导入弹窗 -->
+  <div v-if="showPaste" class="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4" @click.self="showPaste = false">
+    <div class="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-5 shadow-xl" role="dialog" aria-modal="true" aria-label="粘贴评价文本">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-slate-800">粘贴评价文本</h2>
+        <button class="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600" @click="showPaste = false" aria-label="关闭">✕</button>
+      </div>
+      <p class="mt-1 text-[11px] leading-relaxed text-slate-400">
+        每行一条评价；可选星级前缀：<code class="rounded bg-slate-100 px-1">[1星] 物流太慢</code> 或 <code class="rounded bg-slate-100 px-1">星级：5 很好用</code>；无前缀按 3 星。
+      </p>
+      <p class="mt-1.5 text-[11px] leading-relaxed text-slate-400">
+        数据仅在本机分析，不上传；建议使用自己店铺后台导出的评价数据。
+      </p>
+      <textarea v-model="pasteText" rows="9" class="mt-3 w-full resize-y rounded-lg border border-slate-300 p-2.5 text-xs leading-relaxed text-slate-700 outline-none focus:border-brand focus:ring-2 focus:ring-brand/15"
+                placeholder="[5星] 肤感很舒服，吸收快，保湿效果不错&#10;[1星] 物流太慢，等了一周才发货&#10;一般般，无功无过，凑合用"></textarea>
+      <div class="mt-3 flex items-center justify-between gap-2">
+        <span class="text-[11px] text-slate-400">共 {{ pasteLineCount }} 行</span>
+        <div class="flex gap-2">
+          <button class="btn-secondary" @click="showPaste = false">取消</button>
+          <button class="btn-primary" @click="importPastedText" :disabled="!pasteText.trim()">导入分析</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     主应用脚本
+     ============================================================ -->
+<script>
+(function () {
+  'use strict';
+  if (!window.Vue || !window.echarts || !window.XLSX) {
+    document.getElementById('app').innerHTML =
+      '<div style="color:#b91c1c;padding:60px;text-align:center">依赖加载失败：请联网（或确保 libs/ 目录完整）后刷新页面。</div>';
+    return;
+  }
+  const { createApp, nextTick } = Vue;
+
+  /* ======================= 常量与主题色 ======================= */
+  const C_POS = '#10b981', C_NEG = '#f43f5e', C_NEUT = '#94a3b8', C_BRAND = '#2563eb';
+  const PLATFORMS = ['淘宝', '拼多多', '抖音', '京东', '快手', '小红书'];
+  const CATEGORIES = ['护肤', '彩妆', '个护', '食品', '家居'];
+
+  // 商品池：编码 → 名称（示例数据用）
+  const PRODUCT_POOL = {
+    '护肤': [
+      ['HF-001', '玻尿酸水光精华液'], ['HF-002', '烟酰胺焕亮面霜'], ['HF-003', '氨基酸温和洁面'],
+    ],
+    '彩妆': [
+      ['CM-001', '持妆粉底液'], ['CM-002', '丝绒哑光口红'],
+    ],
+    '个护': [
+      ['GH-001', '氨基酸洗发水'], ['GH-002', '烟酰胺身体乳'],
+    ],
+    '食品': [
+      ['SP-001', '冻干速溶咖啡'], ['SP-002', '每日坚果礼盒'],
+    ],
+    '家居': [
+      ['HJ-001', '记忆棉护颈枕'], ['HJ-002', '香薰蜡烛礼盒'],
+    ],
+  };
+
+  // 店铺池：平台 → 店铺
+  const SHOP_POOL = {
+    '淘宝': ['星屿旗舰店', '潮汐百货店'],
+    '拼多多': ['拼鲜优选', '多多好物严选'],
+    '抖音': ['抖抖潮流馆', '云上甄选'],
+    '京东': ['京品自营旗舰店', '京品生活专营店'],
+    '快手': ['快手精选联盟', '老铁严选'],
+    '小红书': ['种草研究所', '小确幸杂货铺'],
+  };
+
+  // 属性（观点维度）→ 关键词与一级标签
+  const ASPECTS = {
+    '肤感': { kws: ['肤感', '质地', '手感', '上脸', '油腻', '黏腻', '吸收'], group: '肤感体验' },
+    '气味': { kws: ['气味', '味道', '香味', '香', '臭', '刺鼻', '好闻'], group: '气味体验' },
+    '使用感': { kws: ['使用感', '保湿', '滋润', '控油', '提亮', '补水', '效果', '闷痘'], group: '使用效果' },
+    '价格': { kws: ['价格', '性价比', '贵', '便宜', '值'], group: '价格' },
+    '包装': { kws: ['包装', '瓶身', '密封', '漏液', '破损'], group: '物流包装' },
+    '物流': { kws: ['物流', '快递', '发货', '到货', '配送'], group: '物流包装' },
+    '客服': { kws: ['客服', '售后', '态度', '回复'], group: '客服售后' },
+    '质量': { kws: ['质量', '做工', '正品', '假货', '过敏'], group: '产品质量' },
+    '规格': { kws: ['尺寸', '大小', '容量', '毫升'], group: '产品规格' },
+  };
+
+  // 情感评估词 → 极性（正面为正，负面为负）
+  const SENTI = {
+    '舒服': 1, '舒适': 1, '清爽': 1, '细腻': 1, '好闻': 1, '香': 0.8, '好用': 1, '有效': 1,
+    '保湿': 1, '滋润': 1, '控油': 1, '提亮': 1, '补水': 1, '温和': 1, '轻薄': 0.8, '不油腻': 1,
+    '满意': 1.2, '喜欢': 1, '好': 0.8, '不错': 1, '赞': 1.2, '惊艳': 1.4, '高级': 0.8,
+    '快': 0.8, '迅速': 1, '及时': 1, '划算': 1, '实惠': 1, '便宜': 0.8, '值': 1, '值得': 1,
+    '性价比高': 1.2, '严实': 1, '完好': 1, '耐心': 1, '贴心': 1, '正品': 1, '回购': 1.2,
+    '推荐': 1, '精细': 1, '有质感': 1.2, '服帖': 1, '自然': 0.6, '好看': 1, '明显': 0.6,
+    '差': -1, '很差': -1.4, '失望': -1.2, '后悔': -1.2, '不好': -1.2, '难用': -1.4,
+    '油腻': -1.2, '黏腻': -1.2, '厚重': -0.8, '刺鼻': -1.4, '臭': -1.4, '难闻': -1.2,
+    '过敏': -1.4, '发痒': -1.2, '发红': -1.2, '闷痘': -1.4, '假货': -1.6, '质量差': -1.4,
+    '破损': -1.4, '漏液': -1.4, '太慢': -1.4, '慢': -1, '迟迟': -1.2, '丢件': -1.4,
+    '态度差': -1.4, '敷衍': -1.2, '不搭理': -1.2, '太贵': -1.2, '贵': -1, '不值': -1.2,
+    '性价比低': -1.2, '无效': -1.4, '没效果': -1.4, '垃圾': -1.4, '坑': -1.2, '踩雷': -1.2,
+    '避雷': -1.2, '差评': -1.2, '难闻': -1.2,
+  };
+
+  // 观点短语池：属性 → 正面/负面短语（示例数据用）
+  const PHRASES = {
+    '肤感': { pos: ['肤感很舒服', '质地细腻', '上脸清爽', '吸收很快', '一点都不油腻'],
+             neg: ['肤感油腻', '质地厚重', '上脸黏腻', '吸收很慢'] },
+    '气味': { pos: ['气味好闻', '淡淡的香味', '味道很高级'],
+             neg: ['气味刺鼻', '味道难闻', '香味太浓了'] },
+    '使用感': { pos: ['保湿效果不错', '用完很滋润', '提亮效果明显', '控油效果好'],
+               neg: ['用了几次没效果', '保湿一般', '居然闷痘了'] },
+    '价格': { pos: ['价格划算', '性价比很高', '很实惠'],
+             neg: ['价格太贵', '性价比低', '感觉不值这个价'] },
+    '包装': { pos: ['包装很严实', '瓶身很有质感'],
+             neg: ['包装破损', '瓶身漏液'] },
+    '物流': { pos: ['发货很快', '物流很迅速'],
+             neg: ['物流太慢', '等了好久才发货'] },
+    '客服': { pos: ['客服态度很好', '售后很贴心'],
+             neg: ['客服态度差', '售后爱答不理'] },
+    '质量': { pos: ['是正品', '做工很精细'],
+             neg: ['感觉像假货', '用着过敏了', '质量堪忧'] },
+  };
+
+  /* ======================= 工具函数 ======================= */
+  function mulberry32(seed) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const pad = n => String(n).padStart(2, '0');
+  function fmtDate(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function addDays(iso, n) { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return fmtDate(d); }
+  function fmtInt(v) { return Number(v || 0).toLocaleString('zh-CN'); }
+  function pct(v) { return (v * 100).toFixed(1) + '%'; }
+
+  /* ======================= 观点提取 ======================= */
+  // 从一条评价内容中提取 属性×情感 观点（规则版，供 v1 演示）
+  function extractViewpoints(review) {
+    const content = String(review.content || '');
+    const vps = [];
+    for (const [aspect, cfg] of Object.entries(ASPECTS)) {
+      const hit = cfg.kws.find(kw => content.includes(kw));
+      if (!hit) continue;
+      const at = content.indexOf(hit);
+      // 找与属性最近的评估词
+      let best = null, bestDist = 99;
+      for (const [word, pol] of Object.entries(SENTI)) {
+        const pos = content.indexOf(word);
+        if (pos < 0) continue;
+        const dist = Math.abs(pos - at);
+        if (dist < bestDist) { bestDist = dist; best = { word, pol }; }
+      }
+      if (!best) continue;
+      // 属性与评估词之间出现否定词则翻转极性
+      const lo = Math.min(at, content.indexOf(best.word));
+      const hi = Math.max(at, content.indexOf(best.word)) + best.word.length;
+      const seg = content.slice(lo, hi);
+      let pol = best.pol;
+      if (/不|没|无|未/.test(seg)) pol = -pol;
+      const sentiment = pol > 0 ? '正面' : '负面';
+      vps.push({
+        review_id: review.id,
+        aspect,
+        group: cfg.group,
+        word: best.word,
+        sentiment,
+        phrase: aspect + '·' + best.word,
+      });
+    }
+    return vps;
+  }
+
+  /* ======================= 模拟数据生成 ======================= */
+  function makeDemoData() {
+    const rnd = mulberry32(20260807);
+    const START = '2026-05-20', DAYS = 45;
+    const reviews = [];
+    let id = 0;
+    const pick = arr => arr[Math.floor(rnd() * arr.length)];
+
+    for (let i = 0; i < DAYS; i++) {
+      const date = addDays(START, i);
+      const daily = 3 + Math.floor(rnd() * 3); // 每天 3-5 条
+      for (let k = 0; k < daily; k++) {
+        const platform = pick(PLATFORMS);
+        const shop = pick(SHOP_POOL[platform]);
+        const category = pick(CATEGORIES);
+        const [code, name] = pick(PRODUCT_POOL[category]);
+        // 情感构成：约 55% 正面 / 25% 负面 / 20% 中性
+        const roll = rnd();
+        const tone = roll < 0.55 ? 'pos' : (roll < 0.8 ? 'neg' : 'mix');
+        const aspect = pick(Object.keys(PHRASES));
+        let content = '';
+        if (tone === 'pos') {
+          content = pick(PHRASES[aspect].pos);
+        } else if (tone === 'neg') {
+          content = pick(PHRASES[aspect].neg);
+        } else {
+          const aspect2 = pick(Object.keys(PHRASES));
+          content = pick(PHRASES[aspect].pos) + '，但' + pick(PHRASES[aspect2].neg);
+        }
+        const rating = tone === 'pos' ? 4 + Math.floor(rnd() * 2)
+                     : tone === 'neg' ? 1 + Math.floor(rnd() * 2)
+                     : 3;
+        reviews.push({
+          id: 'r' + (id++),
+          content,
+          rating,
+          date,
+          platform,
+          shop,
+          category,
+          product_code: code,
+          product: name,
+          sentiment: rating >= 4 ? '正面' : (rating <= 2 ? '负面' : '中性'),
+        });
+      }
+    }
+    const viewpoints = [];
+    reviews.forEach(r => viewpoints.push(...extractViewpoints(r)));
+    return { reviews, viewpoints };
+  }
+
+  /* ======================= Excel 导入映射 ======================= */
+  const normKey = k => String(k).trim().toLowerCase().replace(/[\s_\-（）()]/g, '');
+  const ALIASES = {
+    content: ['评价内容', '评论内容', 'content', 'comment', '评价', '评论'],
+    rating: ['星级', '评分', 'rating', 'star'],
+    date: ['日期', '评价时间', 'date', 'time', '评论时间'],
+    platform: ['平台', 'platform', '渠道'],
+    shop: ['店铺', '店名', 'shop', 'store'],
+    category: ['品类', '类目', 'category'],
+    product_code: ['商品编码', '商品编号', 'sku', 'product_code', 'code'],
+    product: ['商品名称', '商品', 'product', '商品标题', '名称'],
+  };
+
+  function normalizeRow(raw) {
+    const keys = Object.keys(raw);
+    const find = aliases => {
+      for (const a of aliases) {
+        const hit = keys.find(k => normKey(k) === normKey(a));
+        if (hit !== undefined && raw[hit] !== '') return raw[hit];
+      }
+      return undefined;
+    };
+    const content = String(find(ALIASES.content) || '').trim();
+    if (!content) return null;
+    let rating = 3;
+    const rv = find(ALIASES.rating);
+    if (rv !== undefined) {
+      const m = String(rv).match(/(\d(?:\.\d)?)/);
+      if (m) rating = Math.max(1, Math.min(5, Math.round(Number(m[1]))));
+      else if (/差评|不满意/.test(String(rv))) rating = 1;
+      else if (/好评|满意/.test(String(rv))) rating = 5;
+    }
+    return {
+      id: 'u' + Math.random().toString(36).slice(2, 9),
+      content,
+      rating,
+      date: String(find(ALIASES.date) || ''),
+      platform: String(find(ALIASES.platform) || '未知平台'),
+      shop: String(find(ALIASES.shop) || '未知店铺'),
+      category: String(find(ALIASES.category) || '未知品类'),
+      product_code: String(find(ALIASES.product_code) || 'UNKNOWN'),
+      product: String(find(ALIASES.product) || '未命名商品'),
+      sentiment: rating >= 4 ? '正面' : (rating <= 2 ? '负面' : '中性'),
+    };
+  }
+
+  function parseDate(v) {
+    if (typeof v === 'number' && v > 20000 && v < 80000 && window.XLSX.SSF) {
+      const d = window.XLSX.SSF.parse_date_code(v);
+      if (d) return d.y + '-' + pad(d.m) + '-' + pad(d.d);
+    }
+    const s = String(v == null ? '' : v).trim();
+    let m = s.match(/^(\d{4})[年/\-.](\d{1,2})[月/\-.](\d{1,2})/);
+    if (m) return m[1] + '-' + pad(m[2]) + '-' + pad(m[3]);
+    m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+    if (m) return m[1] + '-' + m[2] + '-' + m[3];
+    const d = new Date(s);
+    return isNaN(d) ? null : fmtDate(d);
+  }
+
+  // 粘贴文本解析：每行一条评价，可选 [N星] / N星 / 星级：N 前缀
+  const LINE_PREFIX = /^\s*\[?\s*(\d(?:\.\d)?)\s*星?\]?\s*[:：]?\s*(.*)$/;
+  function parsePastedText(text) {
+    const reviews = [];
+    let skipped = 0;
+    const seen = new Set();
+    const today = fmtDate(new Date());
+    text.split(/\r?\n/).forEach((line, idx) => {
+      line = line.trim();
+      if (!line) { skipped++; return; }
+      let rating = 3;
+      let content = line;
+      const m = LINE_PREFIX.exec(line);
+      if (m) {
+        rating = Math.max(1, Math.min(5, Math.round(Number(m[1]))));
+        content = m[2].trim();
+      }
+      if (!content) { skipped++; return; }
+      if (seen.has(content)) { skipped++; return; }
+      seen.add(content);
+      reviews.push({
+        id: 'p' + idx + '-' + Math.random().toString(36).slice(2, 7),
+        content,
+        rating,
+        date: today,
+        platform: '未知平台',
+        shop: '未知店铺',
+        category: '未知品类',
+        product_code: 'UNKNOWN',
+        product: '未命名商品',
+        sentiment: rating >= 4 ? '正面' : (rating <= 2 ? '负面' : '中性'),
+      });
+    });
+    return { reviews, skipped };
+  }
+
+  /* ======================= 聚合工具 ======================= */
+  function countBy(list, key) {
+    const m = {};
+    list.forEach(x => { m[x[key]] = (m[x[key]] || 0) + 1; });
+    return m;
+  }
+
+  function delta(cur, prev) {
+    if (prev == null || prev === 0) return null;
+    return (cur - prev) / prev * 100;
+  }
+
+  /* ======================= 图表配置（科技蓝/白浅色主题） ======================= */
+  const AXIS = { color: '#64748b', fontSize: 11 };
+  const SPLIT = { lineStyle: { color: '#eef2f7' } };
+  const TOOLTIP = {
+    backgroundColor: '#ffffff', borderColor: '#e2e8f0', textStyle: { color: '#334155', fontSize: 12 },
+    extraCssText: 'box-shadow: 0 8px 24px rgba(15,23,42,.08); border-radius: 8px;',
+  };
+
+  function donutOption(items, centerText) {
+    const hasData = items.some(x => x.value > 0);
+    return {
+      tooltip: { ...TOOLTIP, trigger: 'item', formatter: p => p.name + '：' + fmtInt(p.value) + '（' + p.percent + '%）' },
+      legend: { bottom: 0, textStyle: { color: '#64748b', fontSize: 11 }, itemWidth: 10, itemHeight: 10 },
+      graphic: hasData ? [
+        { type: 'text', left: 'center', top: '38%', style: { text: centerText, fill: '#94a3b8', fontSize: 11, textAlign: 'center' } },
+      ] : [],
+      series: [{
+        type: 'pie', radius: ['46%', '68%'], center: ['50%', '44%'],
+        itemStyle: { borderColor: '#fff', borderWidth: 2, borderRadius: 4 },
+        label: { show: false },
+        emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold', color: '#334155', formatter: '{b}\n{d}%' } },
+        data: hasData ? items : [{ name: '暂无数据', value: 1, itemStyle: { color: '#e2e8f0' } }],
+      }],
+    };
+  }
+
+  function lineOption(dates, seriesList) {
+    return {
+      tooltip: { ...TOOLTIP, trigger: 'axis' },
+      legend: { top: 0, textStyle: { color: '#64748b', fontSize: 11 }, itemWidth: 14, itemHeight: 8, icon: 'roundRect' },
+      grid: { left: 8, right: 12, top: 30, bottom: 0, containLabel: true },
+      xAxis: { type: 'category', boundaryGap: false, data: dates.map(d => d.slice(5).replace('-', '/')),
+               axisLine: { lineStyle: { color: '#e2e8f0' } }, axisLabel: AXIS, axisTick: { show: false } },
+      yAxis: { type: 'value', splitLine: SPLIT, axisLabel: { ...AXIS, formatter: v => (v >= 1000 ? (v / 1000) + 'k' : v) } },
+      series: seriesList.map(s => ({ ...s, type: 'line', smooth: true, symbol: 'circle', symbolSize: 4,
+                                     lineStyle: { width: 2, color: s.color }, itemStyle: { color: s.color } })),
+    };
+  }
+
+  /* ======================= Vue 应用 ======================= */
+  const app = createApp({
+    data() {
+      return {
+        allReviews: [],
+        allViewpoints: [],
+        filters: {
+          startDate: '2026-05-20',
+          endDate: '2026-07-03',
+          platform: '全部平台',
+          shop: '全部店铺',
+          category: '全部品类',
+          productCode: '全部编码',
+        },
+        tagMode: '负面',
+        showPaste: false,
+        pasteText: '',
+        toast: { show: false, msg: '', error: false, timer: null },
+        charts: {},
+      };
+    },
+
+    computed: {
+      platformOptions() { return [...new Set(this.allReviews.map(r => r.platform))]; },
+      shopOptions() {
+        return [...new Set(this.allReviews
+          .filter(r => this.filters.platform === '全部平台' || r.platform === this.filters.platform)
+          .map(r => r.shop))].sort();
+      },
+      categoryOptions() { return [...new Set(this.allReviews.map(r => r.category))]; },
+      productOptions() {
+        const f = this.filters;
+        const set = new Map();
+        this.allReviews.forEach(r => {
+          if (f.platform !== '全部平台' && r.platform !== f.platform) return;
+          if (f.shop !== '全部店铺' && r.shop !== f.shop) return;
+          if (f.category !== '全部品类' && r.category !== f.category) return;
+          set.set(r.product_code, { code: r.product_code, name: r.product });
+        });
+        return [...set.values()];
+      },
+
+      filteredReviews() {
+        const f = this.filters;
+        return this.allReviews.filter(r =>
+          r.date >= f.startDate && r.date <= f.endDate &&
+          (f.platform === '全部平台' || r.platform === f.platform) &&
+          (f.shop === '全部店铺' || r.shop === f.shop) &&
+          (f.category === '全部品类' || r.category === f.category) &&
+          (f.productCode === '全部编码' || r.product_code === f.productCode)
+        );
+      },
+      filteredViewpoints() {
+        const ids = new Set(this.filteredReviews.map(r => r.id));
+        return this.allViewpoints.filter(v => ids.has(v.review_id));
+      },
+      prevReviews() {
+        const f = this.filters;
+        if (!this.allReviews.length) return [];
+        const len = Math.round((new Date(f.endDate) - new Date(f.startDate)) / 86400000) + 1;
+        const ps = addDays(f.startDate, -len), pe = addDays(f.startDate, -1);
+        return this.allReviews.filter(r =>
+          r.date >= ps && r.date <= pe &&
+          (f.platform === '全部平台' || r.platform === f.platform) &&
+          (f.shop === '全部店铺' || r.shop === f.shop) &&
+          (f.category === '全部品类' || r.category === f.category) &&
+          (f.productCode === '全部编码' || r.product_code === f.productCode)
+        );
+      },
+      prevViewpoints() {
+        const ids = new Set(this.prevReviews.map(r => r.id));
+        return this.allViewpoints.filter(v => ids.has(v.review_id));
+      },
+
+      summary() {
+        const rs = this.filteredReviews;
+        const c = countBy(rs, 'sentiment');
+        return { total: rs.length, pos: c['正面'] || 0, neg: c['负面'] || 0, neut: c['中性'] || 0 };
+      },
+      viewpointCount() { return this.filteredViewpoints.length; },
+      summaryRange() { return this.filteredReviews.length ? this.filters.startDate + ' ~ ' + this.filters.endDate : '—'; },
+      platformCount() { return new Set(this.filteredReviews.map(r => r.platform)).size; },
+      shopCount() { return new Set(this.filteredReviews.map(r => r.shop)).size; },
+      pasteLineCount() { return this.pasteText.split(/\r?\n/).filter(l => l.trim()).length; },
+
+      kpiCards() {
+        const cur = {
+          total: this.filteredReviews.length,
+          posR: this.summary.pos,
+          negR: this.summary.neg,
+          vpTotal: this.filteredViewpoints.length,
+          posV: this.filteredViewpoints.filter(v => v.sentiment === '正面').length,
+          negV: this.filteredViewpoints.filter(v => v.sentiment === '负面').length,
+        };
+        const prev = {
+          total: this.prevReviews.length,
+          posR: countBy(this.prevReviews, 'sentiment')['正面'] || 0,
+          negR: countBy(this.prevReviews, 'sentiment')['负面'] || 0,
+          vpTotal: this.prevViewpoints.length,
+          posV: this.prevViewpoints.filter(v => v.sentiment === '正面').length,
+          negV: this.prevViewpoints.filter(v => v.sentiment === '负面').length,
+        };
+        cur.posRate = cur.vpTotal ? cur.posV / cur.vpTotal * 100 : 0;
+        cur.negRate = cur.vpTotal ? cur.negV / cur.vpTotal * 100 : 0;
+        prev.posRate = prev.vpTotal ? prev.posV / prev.vpTotal * 100 : 0;
+        prev.negRate = prev.vpTotal ? prev.negV / prev.vpTotal * 100 : 0;
+
+        const cards = [
+          { key: 'total', label: '评价数', value: fmtInt(cur.total), color: 'text-brand', delta: delta(cur.total, prev.total) },
+          { key: 'posR', label: '正面评价数', value: fmtInt(cur.posR), color: 'text-pos', delta: delta(cur.posR, prev.posR) },
+          { key: 'negR', label: '负面评价数', value: fmtInt(cur.negR), color: 'text-neg', delta: delta(cur.negR, prev.negR) },
+          { key: 'vpTotal', label: '观点数', value: fmtInt(cur.vpTotal), color: 'text-sky-600', delta: delta(cur.vpTotal, prev.vpTotal) },
+          { key: 'posV', label: '正面观点数', value: fmtInt(cur.posV), color: 'text-pos', delta: delta(cur.posV, prev.posV) },
+          { key: 'negV', label: '负面观点数', value: fmtInt(cur.negV), color: 'text-neg', delta: delta(cur.negV, prev.negV) },
+          { key: 'posRate', label: '观点正面率', value: cur.posRate.toFixed(1) + '%', color: 'text-pos', delta: delta(cur.posRate, prev.posRate) },
+          { key: 'negRate', label: '观点负面率', value: cur.negRate.toFixed(1) + '%', color: 'text-neg', delta: delta(cur.negRate, prev.negRate) },
+        ];
+        return cards; // 涨跌颜色：绿降红升（模板统一处理）
+      },
+
+      /* ---------- 图表数据聚合 ---------- */
+      chartData() {
+        const revs = this.filteredReviews;
+        const vps = this.filteredViewpoints;
+        const rc = countBy(revs, 'sentiment');
+        const vc = countBy(vps, 'sentiment');
+        const dates = [...new Set(revs.map(r => r.date))].sort();
+
+        // 趋势
+        const trendMap = {};
+        dates.forEach(d => trendMap[d] = { total: 0, pos: 0, neg: 0 });
+        revs.forEach(r => {
+          const t = trendMap[r.date];
+          if (!t) return;
+          t.total++;
+          if (r.sentiment === '正面') t.pos++;
+          else if (r.sentiment === '负面') t.neg++;
+        });
+
+        // 负面观点趋势
+        const negByDate = {};
+        dates.forEach(d => negByDate[d] = 0);
+        const vpDate = {};
+        revs.forEach(r => vpDate[r.id] = r.date);
+        vps.forEach(v => { const d = vpDate[v.review_id]; if (d && negByDate[d] !== undefined && v.sentiment === '负面') negByDate[d]++; });
+
+        // 词云
+        const wc = {};
+        vps.forEach(v => {
+          [v.aspect, v.word].forEach(w => {
+            if (!wc[w]) wc[w] = { count: 0, pos: 0, neg: 0 };
+            wc[w].count++;
+            if (v.sentiment === '正面') wc[w].pos++; else wc[w].neg++;
+          });
+        });
+
+        // 属性情感对比
+        const aspMap = {};
+        Object.keys(ASPECTS).forEach(a => aspMap[a] = { pos: 0, neg: 0 });
+        vps.forEach(v => { if (aspMap[v.aspect]) aspMap[v.aspect][v.sentiment === '正面' ? 'pos' : 'neg']++; });
+
+        // 观点标签排名（按短语）
+        const tagMap = {};
+        vps.forEach(v => {
+          if (!tagMap[v.phrase]) tagMap[v.phrase] = { label: v.phrase, count: 0, pos: 0, neg: 0 };
+          tagMap[v.phrase].count++;
+          if (v.sentiment === '正面') tagMap[v.phrase].pos++; else tagMap[v.phrase].neg++;
+        });
+
+        // 观点词频（属性 × 情感）
+        const wfMap = {};
+        vps.forEach(v => {
+          const k = v.aspect + '|' + v.sentiment;
+          if (!wfMap[k]) wfMap[k] = { aspect: v.aspect, sentiment: v.sentiment, group: v.group, pos: 0, neg: 0, words: {} };
+          wfMap[k][v.sentiment === '正面' ? 'pos' : 'neg']++;
+          wfMap[k].words[v.word] = (wfMap[k].words[v.word] || 0) + 1;
+        });
+
+        // 商品声量
+        const prodMap = {};
+        vps.forEach(v => {
+          const r = revs.find(x => x.id === v.review_id);
+          if (!r) return;
+          const code = r.product_code;
+          if (!prodMap[code]) prodMap[code] = { code, name: r.product, shop: r.shop, pos: 0, neg: 0 };
+          if (v.sentiment === '正面') prodMap[code].pos++; else prodMap[code].neg++;
+        });
+
+        return { dates, rc, vc, trendMap, negByDate, wc, aspMap, tagMap, wfMap, prodMap };
+      },
+
+      tagRanking() {
+        const mode = this.tagMode;
+        let list = Object.values(this.chartData.tagMap).map(t => ({
+          label: t.label, count: t.count,
+          color: t.pos >= t.neg ? C_POS : C_NEG,
+        }));
+        if (mode === '负面') list = list.filter(t => this.chartData.tagMap[t.label].neg > 0 && this.chartData.tagMap[t.label].neg >= this.chartData.tagMap[t.label].pos);
+        if (mode === '正面') list = list.filter(t => this.chartData.tagMap[t.label].pos > 0 && this.chartData.tagMap[t.label].pos >= this.chartData.tagMap[t.label].neg);
+        list.sort((a, b) => b.count - a.count);
+        const max = list.length ? list[0].count : 1;
+        return list.slice(0, 10).map(t => ({ ...t, pct: Math.round(t.count / max * 100) }));
+      },
+
+      wordFreq() {
+        const rows = Object.values(this.chartData.wfMap).map(w => {
+          const topWord = Object.entries(w.words).sort((a, b) => b[1] - a[1])[0];
+          return {
+            aspect: w.aspect,
+            sentiment: w.sentiment,
+            group: w.group,
+            phrase: w.aspect + '·' + (topWord ? topWord[0] : w.sentiment),
+            category: w.sentiment === '正面' ? '正面观点' : '负面观点',
+            pos: w.pos, neg: w.neg,
+            total: w.pos + w.neg,
+          };
+        });
+        return rows.sort((a, b) => b.total - a.total).slice(0, 30);
+      },
+
+      productRank() {
+        const list = Object.values(this.chartData.prodMap).map(g => {
+          const total = g.pos + g.neg;
+          return { ...g, total, posShare: total ? Math.round(g.pos / total * 100) : 0, negShare: total ? Math.round(g.neg / total * 100) : 0 };
+        });
+        return {
+          neg: [...list].sort((a, b) => b.neg - a.neg).slice(0, 10),
+          pos: [...list].sort((a, b) => b.pos - a.pos).slice(0, 10),
+        };
+      },
+    },
+
+    watch: {
+      'filters.platform'() { if (this.filters.shop !== '全部店铺' && !this.shopOptions.includes(this.filters.shop)) this.filters.shop = '全部店铺'; },
+      'filters.shop'() { if (this.filters.productCode !== '全部编码' && !this.productOptions.some(p => p.code === this.filters.productCode)) this.filters.productCode = '全部编码'; },
+      filteredReviews() { nextTick(() => this.renderAllCharts()); },
+    },
+
+    mounted() {
+      this.loadDemo();
+      window.addEventListener('resize', this.resizeCharts);
+    },
+    beforeUnmount() {
+      window.removeEventListener('resize', this.resizeCharts);
+      Object.values(this.charts).forEach(c => c.dispose());
+    },
+
+    methods: {
+      fmtInt, pct,
+
+      showToast(msg, error) {
+        this.toast = { show: true, msg, error: !!error };
+        clearTimeout(this.toast.timer);
+        this.toast.timer = setTimeout(() => { this.toast.show = false; }, 3200);
+      },
+
+      loadDemo() {
+        const data = makeDemoData();
+        this.allReviews = data.reviews;
+        this.allViewpoints = data.viewpoints;
+        this.resetFilters();
+        this.showToast('已载入模拟数据：' + data.reviews.length + ' 条评价 / ' + data.viewpoints.length + ' 条观点');
+      },
+
+      resetFilters() {
+        if (!this.allReviews.length) return;
+        const dates = this.allReviews.map(r => r.date).sort();
+        this.filters.startDate = dates[0];
+        this.filters.endDate = dates[dates.length - 1];
+        this.filters.platform = '全部平台';
+        this.filters.shop = '全部店铺';
+        this.filters.category = '全部品类';
+        this.filters.productCode = '全部编码';
+      },
+
+      openFilePicker() { this.$refs.fileInput.click(); },
+
+      importPastedText() {
+        const { reviews, skipped } = parsePastedText(this.pasteText);
+        if (!reviews.length) {
+          this.showToast('未识别到有效评价，请检查每行格式', true);
+          return;
+        }
+        const viewpoints = [];
+        reviews.forEach(r => viewpoints.push(...extractViewpoints(r)));
+        this.allReviews = reviews;
+        this.allViewpoints = viewpoints;
+        this.resetFilters();
+        this.showPaste = false;
+        this.showToast('导入成功：' + reviews.length + ' 条评价 / ' + viewpoints.length + ' 条观点' + (skipped ? '（跳过 ' + skipped + ' 行）' : ''));
+      },
+
+      onFileChange(e) {
+        const file = e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+          try {
+            const wb = XLSX.read(ev.target.result, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
+            if (!raw.length) throw new Error('表格为空或没有数据行');
+            const reviews = [];
+            let skipped = 0;
+            raw.forEach(r => {
+              const row = normalizeRow(r);
+              if (!row) { skipped++; return; }
+              const d = parseDate(row.date);
+              if (!d) { skipped++; return; }
+              row.date = d;
+              reviews.push(row);
+            });
+            if (!reviews.length) throw new Error('未能识别出有效评价（需包含「评价内容」与「日期」列）');
+            const viewpoints = [];
+            reviews.forEach(r => viewpoints.push(...extractViewpoints(r)));
+            this.allReviews = reviews;
+            this.allViewpoints = viewpoints;
+            this.resetFilters();
+            this.showToast('导入成功：' + reviews.length + ' 条评价 / ' + viewpoints.length + ' 条观点' + (skipped ? '（跳过 ' + skipped + ' 行）' : ''));
+          } catch (err) {
+            this.showToast('导入失败：' + err.message, true);
+          }
+        };
+        reader.onerror = () => this.showToast('文件读取失败', true);
+        reader.readAsArrayBuffer(file);
+      },
+
+      /* ---------- 图表渲染 ---------- */
+      renderAllCharts() {
+        const d = this.chartData;
+        this.setChart('chartReviewShare', donutOption([
+          { name: '正面评价', value: d.rc['正面'] || 0, itemStyle: { color: C_POS } },
+          { name: '负面评价', value: d.rc['负面'] || 0, itemStyle: { color: C_NEG } },
+          { name: '中性评价', value: d.rc['中性'] || 0, itemStyle: { color: C_NEUT } },
+        ], '评价 ' + fmtInt(this.summary.total)));
+        this.setChart('chartViewpointShare', donutOption([
+          { name: '正面观点', value: d.vc['正面'] || 0, itemStyle: { color: C_POS } },
+          { name: '负面观点', value: d.vc['负面'] || 0, itemStyle: { color: C_NEG } },
+        ], '观点 ' + fmtInt(this.viewpointCount)));
+        this.setChart('chartTrend', lineOption(d.dates, [
+          { name: '评价数', color: C_BRAND, data: d.dates.map(x => d.trendMap[x].total) },
+          { name: '正面评价', color: C_POS, data: d.dates.map(x => d.trendMap[x].pos) },
+          { name: '负面评价', color: C_NEG, data: d.dates.map(x => d.trendMap[x].neg) },
+        ]));
+        try {
+          this.setChart('chartWordCloud', this.wordCloudOption(d));
+        } catch (err) {
+          // 词云插件缺失时降级：不影响其余图表
+          this.showToast('词云组件未加载，已跳过该图表', true);
+        }
+        this.setChart('chartNegTrend', this.negTrendOption(d));
+        this.setChart('chartAspect', this.aspectOption(d));
+      },
+
+      wordCloudOption(d) {
+        const items = Object.entries(d.wc)
+          .map(([name, v]) => ({
+            name,
+            value: v.count,
+            itemStyle: { color: v.pos >= v.neg ? (v.pos > v.neg ? C_POS : '#60a5fa') : C_NEG },
+          }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 48);
+        return {
+          tooltip: { ...TOOLTIP, formatter: p => p.name + '：' + p.value + ' 次' },
+          series: [{
+            type: 'wordCloud', shape: 'circle', width: '96%', height: '92%',
+            sizeRange: [12, 34], rotationRange: [0, 0], gridSize: 6,
+            textStyle: { fontFamily: 'Inter, "PingFang SC", sans-serif', fontWeight: 600 },
+            emphasis: { textStyle: { textShadowBlur: 8, textShadowColor: 'rgba(0,0,0,.12)' } },
+            data: items.length ? items : [{ name: '暂无数据', value: 1, itemStyle: { color: '#e2e8f0' } }],
+          }],
+        };
+      },
+
+      negTrendOption(d) {
+        const dates = d.dates;
+        const counts = dates.map(x => d.negByDate[x] || 0);
+        const rates = dates.map(x => d.trendMap[x].total ? Math.round((d.negByDate[x] || 0) / d.trendMap[x].total * 1000) / 10 : 0);
+        return {
+          tooltip: { ...TOOLTIP, trigger: 'axis' },
+          legend: { top: 0, textStyle: { color: '#64748b', fontSize: 11 }, itemWidth: 14, itemHeight: 8, icon: 'roundRect' },
+          grid: { left: 8, right: 8, top: 30, bottom: 0, containLabel: true },
+          xAxis: { type: 'category', data: dates.map(x => x.slice(5).replace('-', '/')), axisLine: { lineStyle: { color: '#e2e8f0' } }, axisLabel: AXIS, axisTick: { show: false } },
+          yAxis: [
+            { type: 'value', name: '条', splitLine: SPLIT, axisLabel: { ...AXIS, formatter: v => (v >= 1000 ? (v / 1000) + 'k' : v) } },
+            { type: 'value', name: '%', splitLine: { show: false }, axisLabel: { ...AXIS, formatter: v => v + '%' } },
+          ],
+          series: [
+            { name: '负面观点数', type: 'bar', barMaxWidth: 14, data: counts,
+              itemStyle: { color: 'rgba(244,63,94,.75)', borderRadius: [3, 3, 0, 0] } },
+            { name: '负面率', type: 'line', yAxisIndex: 1, smooth: true, symbol: 'circle', symbolSize: 4,
+              data: rates, lineStyle: { width: 2, color: C_BRAND }, itemStyle: { color: C_BRAND } },
+          ],
+        };
+      },
+
+      aspectOption(d) {
+        const aspects = Object.keys(ASPECTS).filter(a => (d.aspMap[a].pos + d.aspMap[a].neg) > 0).reverse();
+        return {
+          tooltip: { ...TOOLTIP, trigger: 'axis', axisPointer: { type: 'shadow' } },
+          legend: { top: 0, textStyle: { color: '#64748b', fontSize: 11 }, itemWidth: 10, itemHeight: 10 },
+          grid: { left: 8, right: 16, top: 28, bottom: 0, containLabel: true },
+          xAxis: { type: 'value', splitLine: SPLIT, axisLabel: { ...AXIS, formatter: v => (v >= 1000 ? (v / 1000) + 'k' : v) } },
+          yAxis: { type: 'category', data: aspects, axisLine: { lineStyle: { color: '#e2e8f0' } }, axisLabel: AXIS, axisTick: { show: false } },
+          series: [
+            { name: '正面观点', type: 'bar', stack: 'a', barMaxWidth: 16, data: aspects.map(a => d.aspMap[a].pos),
+              itemStyle: { color: C_POS, borderRadius: [0, 0, 0, 0] } },
+            { name: '负面观点', type: 'bar', stack: 'a', barMaxWidth: 16, data: aspects.map(a => d.aspMap[a].neg),
+              itemStyle: { color: C_NEG, borderRadius: [3, 3, 0, 0] } },
+          ],
+        };
+      },
+
+      setChart(ref, option) {
+        const el = this.$refs[ref];
+        if (!el) return;
+        let chart = echarts.getInstanceByDom(el);
+        if (!chart) chart = echarts.init(el, null, { renderer: 'canvas' });
+        chart.setOption(option, true);
+        this.charts[ref] = chart;
+      },
+      resizeCharts() { Object.values(this.charts).forEach(c => c.resize()); },
+    },
+  });
+
+  app.mount('#app');
+})();
+</script>
+</body>
+</html>

@@ -14,15 +14,15 @@
 
 ### Requirement: 可插拔实现与配置
 
-系统 SHALL 通过 `ANALYZER` 环境变量选择实现（默认 `lexicon`）：`lexicon`（jieba + 电商情感词典，离线）、`huggingface`（`uer/roberta-base-finetuned-jd-binary-chinese`，可选依赖惰性加载）、`llm`（OpenAI 兼容 API）。`huggingface` / `llm` 依赖缺失或调用失败时，系统 SHALL 自动回退 `lexicon` 并在结果中标注实际使用的实现。
+系统 SHALL 通过 `ANALYZER` 环境变量选择实现（默认 `lexicon`）。v1 必须实现 `lexicon`（jieba + 电商情感词典，离线）；`huggingface`（`uer/roberta-base-finetuned-jd-binary-chinese`）与 `llm`（OpenAI 兼容 API）为未来可选实现，接入时应遵循同一 `analyze(text) -> ReviewResult` 契约，未实现时选择器返回明确错误而非静默降级。
 
-#### Scenario: 未配置 llm
-- **WHEN** `ANALYZER=llm` 但未配置 `REVIEW_LLM_KEY`
-- **THEN** 系统回退 `lexicon` 分析并在结果中标注 `source=lexicon`
+#### Scenario: 默认实现离线可用
+- **WHEN** 未配置 `ANALYZER` 或配置为 `lexicon`
+- **THEN** 系统使用 lexicon 完成分析，无需任何外部依赖
 
-#### Scenario: 切换实现
-- **WHEN** 用户把 `ANALYZER` 从 `lexicon` 改为 `huggingface` 并重启
-- **THEN** 系统使用 RoBERTa 模型分析，无需改动调用方
+#### Scenario: 切换实现（未来）
+- **WHEN** v1.5 接入 `huggingface` / `llm` 且用户切换 `ANALYZER`
+- **THEN** 系统按同一契约返回 `ReviewResult`，无需改动调用方
 
 ### Requirement: llm 维度标签（可选）
 

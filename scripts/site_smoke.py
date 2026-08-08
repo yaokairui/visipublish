@@ -38,6 +38,7 @@ def run(viewport, shot_path):
         # 链接正确性
         r["dash_link"] = page.locator('a[href="../dashboard/index.html"]').count()
         r["readme_link"] = page.locator('a[href="../README.md"]').count()
+        r["reviews_link"] = page.locator('a[href="../reviews/frontend/index.html"]').count()
         page.screenshot(path=str(shot_path), full_page=True)
         browser.close()
     return r, errors
@@ -59,6 +60,7 @@ ok = all([
     results["desktop"]["last_card_visible"],
     results["desktop"]["dash_link"] >= 1,
     results["desktop"]["readme_link"] >= 1,
+    results["desktop"]["reviews_link"] >= 1,
     results["mobile"]["no_h_scroll"],
     results["mobile"]["cards"] == 3,
 ])

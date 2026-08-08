@@ -190,3 +190,11 @@ npm run dev        # http://localhost:5173，/api 代理到 8502
 - 内容：个人作品集首页 —— Hero + 项目网格（运营看板 / 上架助手 / 评价分析-规划中）+ 理念 + 页脚，含各项目截图与入口链接。
 - 设计：深空蓝底 + 运行绿（ui-ux-pro-max 设计系统），Inter 字族，滚动入场动画，尊重 `prefers-reduced-motion`。
 - 冒烟测试：`.venv/Scripts/python.exe scripts/site_smoke.py`（1440px / 375px 双端）。
+
+## 13. 商品评价分析·声量洞察看板（reviews/）
+
+- 入口：双击 `reviews/frontend/index.html` 即可离线运行（依赖库在 `reviews/frontend/libs/`，缺失时回退 CDN）。
+- 功能：上传商家后台导出的评价 Excel（SheetJS 浏览器解析）或载入模拟数据 → 观点提取（属性×情感）→ 8 项指标卡（含环比「绿降红升」）/ 情感结构双环形 + 多维度趋势 / 观点标签排名（正负/整体切换）/ 观点词云（情感染色）/ 负面观点趋势（柱+线）/ 属性情感对比 / 观点词频表 / 商品声量正负排名。
+- 风格：科技蓝/白浅色 SaaS 卡片式，柔和红绿情感色；数据仅在本机分析，不上传。
+- Python 后端核心（可选增强）：`reviews/backend/` 已含 lexicon 情感分析、导入标准化、痛点挖掘（TF-IDF）；`ANALYZER` 环境变量可切换分析实现。
+- 单元检查：`.venv/Scripts/python.exe scripts/reviews_unit_check.py`；冒烟测试：`.venv/Scripts/python.exe scripts/reviews_smoke.py`。

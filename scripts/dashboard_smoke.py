@@ -29,7 +29,7 @@ with sync_playwright() as p:
     page.on("pageerror", lambda e: errors.append("PAGEERROR: " + str(e)))
     try:
         page.goto(DASH.as_uri())
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("domcontentloaded")
         page.wait_for_selector(".kpi-card", timeout=20000)
         page.wait_for_timeout(2500)
 

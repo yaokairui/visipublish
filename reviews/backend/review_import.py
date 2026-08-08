@@ -139,8 +139,16 @@ def import_frame(df: pd.DataFrame) -> tuple[list[ReviewRow], ImportStats]:
 
 
 def import_excel(path: str | Path) -> tuple[list[ReviewRow], ImportStats]:
-    """读取 .xlsx / .xls（pandas + openpyxl）。"""
-    df = pd.read_excel(path, engine="openpyxl", dtype=object)
+    """读取 .xlsx（openpyxl）/.xls（xlrd，需 pip install xlrd）。"""
+    try:
+        df = pd.read_excel(path, engine="openpyxl", dtype=object)
+    except Exception:
+        try:
+            df = pd.read_excel(path, engine="xlrd", dtype=object)
+        except Exception as e:
+            raise ValueError(
+                "无法读取 Excel（仅支持 .xlsx；旧版 .xls 需安装 xlrd：pip install xlrd）"
+            ) from e
     return import_frame(df)
 
 
