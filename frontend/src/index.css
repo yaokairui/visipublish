@@ -18,6 +18,54 @@ html {
   color-scheme: dark;
 }
 
+/* 亮色主题：覆盖 @theme 生成的 CSS 变量（保留同一套布局与组件） */
+html[data-theme='light'] {
+  color-scheme: light;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f5f9;
+  --color-background: #f6f8fb;
+  --color-border: #e2e8f0;
+  --color-foreground: #1e293b;
+  --color-muted: #64748b;
+  --color-accent: #16a34a;
+  --color-danger: #dc2626;
+  --color-warning: #d97706;
+}
+
+/* 亮色下将浅色文字（-200/-300/-400 档）映射为可读深色，避免对比度不足 */
+html[data-theme='light'] .text-green-200,
+html[data-theme='light'] .text-green-300,
+html[data-theme='light'] .text-green-400 { color: #15803d; }
+html[data-theme='light'] .text-red-300,
+html[data-theme='light'] .text-red-400 { color: #be123c; }
+html[data-theme='light'] .text-amber-300 { color: #b45309; }
+html[data-theme='light'] .text-sky-300,
+html[data-theme='light'] .text-sky-400 { color: #0369a1; }
+html[data-theme='light'] .text-slate-300,
+html[data-theme='light'] .text-slate-400 { color: #475569; }
+html[data-theme='light'] .hover\:text-red-300:hover { color: #be123c; }
+html[data-theme='light'] .bg-black\/60 { background: rgba(15, 23, 42, 0.72); }
+
+/* 主题切换按钮 */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  cursor: pointer;
+  color: var(--color-foreground);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  transition: all 150ms;
+}
+.theme-toggle:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  transform: scale(1.05);
+}
+
 body {
   margin: 0;
   background-color: var(--color-background);
@@ -25,6 +73,9 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   font-size: 14px;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+  text-rendering: optimizeLegibility;
 }
 
 *:focus-visible {
@@ -40,7 +91,7 @@ body {
 
 .input {
   width: 100%;
-  background-color: #0b1220;
+  background-color: var(--color-surface-2);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 8px 10px;

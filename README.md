@@ -103,10 +103,29 @@ cd ..
 > 可选：`Copy-Item .env.example .env` 生成配置文件（不复制也能以 Mock 模式离线运行）。
 
 ```powershell
-# 一键启动：模拟后台（8010）+ Web 前端（8502）
+# 一键启动：模拟后台（8010）+ Web 前端（8502）+ 作品集站（8090）
 .venv\Scripts\python scripts\start_project.py
-# 浏览器访问 http://127.0.0.1:8502
+# 启动成功后会自动打开作品集站；停止服务用 .venv\Scripts\python scripts\start_project.py --stop
 ```
+
+**启动后打开什么（三个入口）**
+
+| 入口 | 地址 | 说明 |
+| --- | --- | --- |
+| 上架助手（主界面） | http://127.0.0.1:8502 | 上传商品图 → 识别 → 审核 → 批量上架 |
+| 模拟后台 · 上架表单 | http://127.0.0.1:8010 | RPA 自动填写的「商家后台」表单页 |
+| 模拟后台 · 已上架记录 | http://127.0.0.1:8010/submissions | 查看 RPA 上架成功的商品记录（可下架） |
+
+> 也可单独启动某个服务：模拟后台 `python -m mock_backend.server`（8010）；Web 后端 `python -m uvicorn webapp.main:app --port 8502`（需先构建前端）。
+
+**如何查看「自动化上架」的过程**
+
+1. 打开上架助手 http://127.0.0.1:8502 ，上传商品图并点击【开始生成】。
+2. 审核区勾选商品后点击【确认无误，批量上架】——前端 1s 轮询进度，逐条展示成功/失败。
+3. 查看 RPA 执行日志：展开任一条已上架商品，点击「RPA 执行日志」，可看到「打开模拟后台 → 填写标题 → 选择类目 → 填写属性 → 回读校验 → 点击提交 → 后端返回上架成功」的完整步骤与截图。
+4. 打开模拟后台 http://127.0.0.1:8010/submissions ，能看到 RPA 真正提交进去的商品记录（落盘在 `mock_backend/submissions.json`）。
+5. 想直接看 RPA「动手」过程：`.env` 中 `RPA_HEADLESS=false`（本仓库默认已设为 false），上架时会弹出真实 Chromium 窗口自动填表提交，演示效果最直观。
+6. RPA 截图：每次上架成功/失败都会截图到 `output/screenshots/rpa_*.png`，前端日志区也能直接查看。
 
 前端开发模式（改 UI 热更新）：
 
@@ -132,6 +151,8 @@ npm run dev        # http://localhost:5173，/api 代理到 8502
 | `MOCK_BACKEND_HOST` / `MOCK_BACKEND_PORT` | `127.0.0.1` / `8010` | 模拟后台监听地址 / 端口 |
 | `RPA_HEADLESS` | `true` | `true` = 无头模式；`false` = 弹出可见浏览器（面试演示更直观） |
 | `RPA_BROWSER` | `chromium` | Playwright 使用的浏览器 |
+
+> 注意：填入 `VISION_API_KEY` 后，密钥会随每个识别请求发送到你配置的 `VISION_API_BASE` 网关。请仅在可信网关下使用，且不要把 `.env` 提交到仓库（`.gitignore` 已排除）。
 
 ## 7. 演示流程（面试现场脚本）
 

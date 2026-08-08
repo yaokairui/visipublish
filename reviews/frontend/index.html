@@ -5,6 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>商品评价分析·声量洞察看板</title>
 
+<!-- 主题初始化（Vue 挂载前执行）：URL ?theme= > localStorage > 默认 dark -->
+<script>
+(function () {
+  var theme = 'dark';
+  try {
+    var q = new URLSearchParams(location.search).get('theme');
+    if (q === 'light' || q === 'dark') theme = q;
+    else {
+      var s = localStorage.getItem('visipublish-theme');
+      if (s === 'light' || s === 'dark') theme = s;
+    }
+  } catch (e) {}
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+  window.__visipublishTheme = theme;
+})();
+function __vpSetTheme(t) {
+  if (t !== 'light' && t !== 'dark') t = 'dark';
+  document.documentElement.dataset.theme = t;
+  document.documentElement.style.colorScheme = t;
+  window.__visipublishTheme = t;
+  try { localStorage.setItem('visipublish-theme', t); } catch (e) {}
+  window.dispatchEvent(new CustomEvent('visipublish-theme', { detail: t }));
+}
+</script>
+
 <!-- 本地优先加载依赖（reviews/frontend/libs/），缺失时回退 CDN -->
 <script src="libs/vue.global.prod.js"></script>
 <script>if (!window.Vue) document.write('<script src="https://unpkg.com/vue@3.4.38/dist/vue.global.prod.js"><\/script>');</script>
@@ -26,9 +52,9 @@
             mono: ['ui-monospace', 'Consolas', 'monospace'],
           },
           colors: {
-            brand: { DEFAULT: '#2563eb', light: '#3b82f6', soft: '#eff6ff' },
-            pos:  { DEFAULT: '#10b981', soft: '#ecfdf5' },
-            neg:  { DEFAULT: '#f43f5e', soft: '#fff1f2' },
+            brand: { DEFAULT: '#22c55e', light: '#4ade80', soft: 'rgba(34,197,94,.15)' },
+            pos:  { DEFAULT: '#10b981', soft: 'rgba(16,185,129,.14)' },
+            neg:  { DEFAULT: '#f43f5e', soft: 'rgba(244,63,94,.14)' },
           },
         },
       },
@@ -37,40 +63,151 @@
 </script>
 
 <style type="text/tailwindcss">
-  .card      { @apply rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,.04)]; }
-  .input     { @apply rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-brand focus:ring-2 focus:ring-brand/15; }
-  .filter-label { @apply mb-1 block text-[10px] font-medium uppercase tracking-wider text-slate-400; }
-  .btn-primary  { @apply inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-xs font-semibold text-white hover:bg-brand-light transition-colors; }
-  .btn-secondary{ @apply inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors; }
-  .panel-title  { @apply flex items-center justify-between text-sm font-semibold text-slate-800; }
-  .panel-sub    { @apply text-[10px] font-normal text-slate-400; }
-  .kpi-label    { @apply text-[11px] text-slate-500; }
+  .card      { @apply rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-[0_2px_12px_rgba(2,6,23,.12)]; }
+  .input     { @apply rounded-lg border border-[var(--border)] bg-[var(--panel)] px-2.5 py-1.5 text-xs text-[var(--ink)] outline-none focus:border-brand focus:ring-2 focus:ring-brand/20; }
+  .filter-label { @apply mb-1 block text-[10px] font-medium uppercase tracking-wider text-[var(--ink-2)]; }
+  .btn-primary  { @apply inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-xs font-semibold text-slate-950 hover:brightness-110 transition-all shadow-[0_4px_14px_rgba(34,197,94,.25)]; }
+  .btn-secondary{ @apply inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3.5 py-2 text-xs font-medium text-[var(--ink)] hover:border-brand/40 hover:text-[var(--ink-1)] transition-colors; }
+  .panel-title  { @apply flex items-center justify-between text-[15px] font-semibold text-[var(--ink-1)]; }
+  .panel-sub    { @apply text-[10px] font-normal text-[var(--ink-2)]; }
+  .kpi-label    { @apply text-[11px] text-[var(--ink-2)]; }
   .kpi-value    { @apply mt-1.5 font-mono text-2xl font-bold tabular-nums; }
-  .tag          { @apply inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500; }
-  .th           { @apply px-3 py-2 text-left text-[11px] font-semibold text-slate-500 whitespace-nowrap; }
-  .td           { @apply px-3 py-2 text-xs text-slate-600 whitespace-nowrap; }
+  .tag          { @apply inline-flex items-center rounded-md bg-[var(--soft)] px-1.5 py-0.5 text-[10px] text-[var(--ink-2)]; }
+  .th           { @apply px-3 py-2 text-left text-[11px] font-semibold text-[var(--ink-2)] whitespace-nowrap; }
+  .td           { @apply px-3 py-2 text-xs text-[var(--ink)] whitespace-nowrap; }
 </style>
 
 <style>
-  /* 科技蓝/白 SaaS 风格：全局背景与滚动条 */
-  body { background: #f4f6fb; }
+  /* ============ 主题 token：深色（默认，对齐导航页科技风） ============ */
+  :root {
+    --bg: #0b1120;
+    --card: #111c31;
+    --panel: #0f172a;
+    --soft: rgba(148, 163, 184, .10);
+    --border: rgba(148, 163, 184, .14);
+    --ink-1: #e2e8f0;
+    --ink: #cbd5e1;
+    --ink-2: #94a3b8;
+    --ink-3: #64748b;
+    --accent: #22c55e;
+    --pos: #10b981;
+    --neg: #f43f5e;
+    --header-bg: rgba(11, 17, 32, .82);
+    --backdrop: rgba(2, 6, 23, .6);
+  }
+  /* ============ 亮色覆盖（保留同一套科技布局，仅反转配色） ============ */
+  html[data-theme='light'] {
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --panel: #f8fafc;
+    --soft: rgba(15, 23, 42, .06);
+    --border: #e2e8f0;
+    --ink-1: #0f172a;
+    --ink: #334155;
+    --ink-2: #64748b;
+    --ink-3: #94a3b8;
+    --accent: #15803d;
+    --pos: #059669;
+    --neg: #e11d48;
+    --header-bg: rgba(255, 255, 255, .86);
+    --backdrop: rgba(15, 23, 42, .35);
+  }
+
+  /* Claude 聊天界面式阅读体验：柔和文字、适度行距、抗锯齿 */
+  body {
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(900px 420px at 12% -10%, rgba(34, 197, 94, .07), transparent 60%),
+      radial-gradient(800px 380px at 88% -20%, rgba(56, 189, 248, .06), transparent 60%),
+      linear-gradient(rgba(148, 163, 184, .035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, .035) 1px, transparent 1px);
+    background-size: auto, auto, 44px 44px, 44px 44px;
+    color: var(--ink-1);
+    font-size: 14px;
+    line-height: 1.6;
+    letter-spacing: .01em;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-family: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  }
   [v-cloak] { display: none !important; }
-  :focus-visible { outline: 2px solid rgba(37,99,235,.7); outline-offset: 2px; border-radius: 6px; }
+  :focus-visible { outline: 2px solid rgba(34,197,94,.8); outline-offset: 2px; border-radius: 6px; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
+  .bg-header { background: var(--header-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  .bg-card { background: var(--card); }
+  .bg-panel { background: var(--panel); }
+  .bd { border-color: var(--border); }
+  .ink-1 { color: var(--ink-1); }
+  .ink { color: var(--ink); }
+  .ink-2 { color: var(--ink-2); }
+  .ink-3 { color: var(--ink-3); }
+  .backdrop { background: var(--backdrop); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+
   .table-wrap { max-height: 420px; overflow: auto; }
   .table-wrap::-webkit-scrollbar { width: 8px; height: 8px; }
-  .table-wrap::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-  .table-wrap thead th { position: sticky; top: 0; background: #f8fafc; z-index: 5; }
+  .table-wrap::-webkit-scrollbar-thumb { background: rgba(148,163,184,.3); border-radius: 4px; }
+  .table-wrap thead th { position: sticky; top: 0; background: var(--panel); z-index: 5; }
 
   /* 涨跌：按需求「绿降红升」 */
   .delta-up   { color: #f43f5e; }
   .delta-down { color: #10b981; }
 
   /* 软进度条 */
-  .progress { height: 6px; border-radius: 9999px; background: #eef2f7; overflow: hidden; }
+  .progress { height: 6px; border-radius: 9999px; background: var(--soft); overflow: hidden; }
   .progress > i { display: block; height: 100%; border-radius: 9999px; }
+
+  /* 图表面板：可点击放大 */
+  .chart-zoom { position: relative; cursor: zoom-in; transition: border-color .2s, box-shadow .2s; }
+  .chart-zoom:hover { border-color: rgba(34,197,94,.4); box-shadow: 0 0 0 1px rgba(34,197,94,.25), 0 8px 24px -12px rgba(34,197,94,.25); }
+  .chart-zoom .zoom-hint {
+    position: absolute; top: 8px; right: 8px; z-index: 2;
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 7px; border-radius: 9999px; font-size: 10px; line-height: 1.5;
+    color: var(--ink-2); background: var(--soft); border: 1px solid var(--border);
+    opacity: 0; transition: opacity .2s; pointer-events: none;
+  }
+  .chart-zoom:hover .zoom-hint, .chart-zoom:focus-within .zoom-hint { opacity: 1; }
+
+  /* 主题切换按钮（右上角） */
+  .theme-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 9999px; cursor: pointer;
+    color: var(--ink-1); background: var(--panel); border: 1px solid var(--border);
+    transition: background .2s, border-color .2s, color .2s, transform .15s;
+  }
+  .theme-toggle:hover { border-color: rgba(34,197,94,.45); color: var(--accent); transform: scale(1.05); }
+  .theme-toggle:active { transform: scale(.95); }
+
+  /* 放大弹窗 */
+  .zoom-panel { background: var(--card); border: 1px solid var(--border); border-radius: 14px; }
+
+  /* ============ 语义色覆盖：让模板中的 slate 工具类随主题切换 ============ */
+  html[data-theme] .text-slate-800,
+  html[data-theme] .text-slate-700,
+  html[data-theme] .text-slate-600 { color: var(--ink-1); }
+  html[data-theme] .text-slate-500,
+  html[data-theme] .text-slate-400 { color: var(--ink-2); }
+  html[data-theme] .text-slate-300,
+  html[data-theme] .text-slate-200 { color: var(--ink-3); }
+  html[data-theme] .text-sky-600 { color: #38bdf8; }
+  html[data-theme='light'] .text-sky-600 { color: #0284c7; }
+  html[data-theme] .ink-accent { color: var(--accent); }
+  html[data-theme] .border-slate-100,
+  html[data-theme] .border-slate-200,
+  html[data-theme] .border-slate-300 { border-color: var(--border); }
+  html[data-theme] .bg-white { background: var(--card); }
+  html[data-theme] .bg-slate-50\/50 { background: var(--panel); }
+  html[data-theme] .bg-slate-100 { background: var(--soft); }
+  html[data-theme] .bg-slate-900\/40 { background: var(--backdrop); }
+  html[data-theme] .hover\:bg-slate-50:hover { background: var(--soft); }
+  html[data-theme] .hover\:bg-slate-100:hover { background: var(--soft); }
+
+  /* Toast 弹层 */
+  .toast-fade-enter-active, .toast-fade-leave-active { transition: opacity .25s, transform .25s; }
+  .toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translateY(10px); }
 </style>
 </head>
 
@@ -78,7 +215,7 @@
 <div id="app" v-cloak class="min-h-dvh">
 
   <!-- ============ 1. 顶部：标题 + 操作按钮 ============ -->
-  <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
+  <header class="sticky top-0 z-40 border-b bd bg-header">
     <div class="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3 px-4 py-3 lg:px-6">
       <div class="flex items-center gap-3">
         <div class="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-brand to-sky-400 text-white shadow-sm">
@@ -90,6 +227,10 @@
         </div>
       </div>
       <div class="flex items-center gap-2">
+        <button class="theme-toggle" @click="toggleTheme" :aria-label="themeBtnLabel" :title="themeBtnLabel">
+          <svg v-if="isLight" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg v-else class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+        </button>
         <button class="btn-secondary" @click="loadDemo" title="载入内置模拟数据">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
           载入模拟数据
@@ -178,18 +319,30 @@
       <div class="panel-title">
         <span>情感结构与趋势 <span class="panel-sub">正负占比 · 逐日走势</span></span>
       </div>
-      <div class="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+      <div class="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div class="rounded-lg border bd bg-panel p-3 chart-zoom lg:col-span-3" tabindex="0" role="button"
+             @click="openZoom('chartViewpointShare', '观点正负占比')"
+             @keydown.enter="openZoom('chartViewpointShare', '观点正负占比')"
+             :aria-label="'放大查看：观点正负占比'">
           <div class="mb-1 text-center text-xs font-medium text-slate-500">观点正负占比</div>
           <div ref="chartViewpointShare" class="h-[240px]"></div>
+          <span class="zoom-hint"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/></svg>点击放大</span>
         </div>
-        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+        <div class="rounded-lg border bd bg-panel p-3 chart-zoom lg:col-span-3" tabindex="0" role="button"
+             @click="openZoom('chartReviewShare', '评价正负占比')"
+             @keydown.enter="openZoom('chartReviewShare', '评价正负占比')"
+             :aria-label="'放大查看：评价正负占比'">
           <div class="mb-1 text-center text-xs font-medium text-slate-500">评价正负占比</div>
           <div ref="chartReviewShare" class="h-[240px]"></div>
+          <span class="zoom-hint"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/></svg>点击放大</span>
         </div>
-        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3 lg:col-span-1">
+        <div class="rounded-lg border bd bg-panel p-3 chart-zoom lg:col-span-6" tabindex="0" role="button"
+             @click="openZoom('chartTrend', '商品评价趋势图（多维度）')"
+             @keydown.enter="openZoom('chartTrend', '商品评价趋势图（多维度）')"
+             :aria-label="'放大查看：商品评价趋势图（多维度）'">
           <div class="mb-1 text-center text-xs font-medium text-slate-500">商品评价趋势图（多维度）</div>
           <div ref="chartTrend" class="h-[240px]"></div>
+          <span class="zoom-hint"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/></svg>点击放大</span>
         </div>
       </div>
     </section>
@@ -199,9 +352,9 @@
       <div class="panel-title">
         <span>观点声量洞察 <span class="panel-sub">标签排名 · 词云分布 · 负面趋势</span></span>
       </div>
-      <div class="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-5">
+      <div class="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-12">
         <!-- 观点标签排名 -->
-        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3 lg:col-span-2">
+        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3 lg:col-span-4">
           <div class="mb-2 flex items-center justify-between">
             <span class="text-xs font-semibold text-slate-600">观点标签排名</span>
             <div class="flex overflow-hidden rounded-lg border border-slate-200 text-[11px]">
@@ -238,15 +391,23 @@
         </div>
 
         <!-- 观点词云分布 -->
-        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3 lg:col-span-2">
+        <div class="rounded-lg border bd bg-panel p-3 chart-zoom lg:col-span-5" tabindex="0" role="button"
+             @click="openZoom('chartWordCloud', '观点词云分布')"
+             @keydown.enter="openZoom('chartWordCloud', '观点词云分布')"
+             :aria-label="'放大查看：观点词云分布'">
           <div class="mb-1 text-xs font-semibold text-slate-600">观点词云分布</div>
           <div ref="chartWordCloud" class="h-[300px]"></div>
+          <span class="zoom-hint"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/></svg>点击放大</span>
         </div>
 
         <!-- 负面评价观点趋势（柱 + 线组合） -->
-        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+        <div class="rounded-lg border bd bg-panel p-3 chart-zoom lg:col-span-3" tabindex="0" role="button"
+             @click="openZoom('chartNegTrend', '负面评价观点趋势')"
+             @keydown.enter="openZoom('chartNegTrend', '负面评价观点趋势')"
+             :aria-label="'放大查看：负面评价观点趋势'">
           <div class="mb-1 text-xs font-semibold text-slate-600">负面评价观点趋势</div>
           <div ref="chartNegTrend" class="h-[300px]"></div>
+          <span class="zoom-hint"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/></svg>点击放大</span>
         </div>
       </div>
     </section>
@@ -257,9 +418,13 @@
         <span>观点词频概况 <span class="panel-sub">属性情感对比 · 观点词频明细</span></span>
       </div>
       <div class="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3 lg:col-span-2">
+        <div class="rounded-lg border bd bg-panel p-3 chart-zoom lg:col-span-2" tabindex="0" role="button"
+             @click="openZoom('chartAspect', '属性情感对比（肤感 / 气味 / 使用感 / 价格…）')"
+             @keydown.enter="openZoom('chartAspect', '属性情感对比（肤感 / 气味 / 使用感 / 价格…）')"
+             :aria-label="'放大查看：属性情感对比'">
           <div class="mb-1 text-xs font-semibold text-slate-600">属性情感对比（肤感 / 气味 / 使用感 / 价格…）</div>
           <div ref="chartAspect" class="h-[300px]"></div>
+          <span class="zoom-hint"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/></svg>点击放大</span>
         </div>
         <div class="rounded-lg border border-slate-100 bg-slate-50/50 p-3 lg:col-span-3">
           <div class="mb-1 text-xs font-semibold text-slate-600">观点词频数量</div>
@@ -421,6 +586,19 @@
       </div>
     </div>
   </div>
+
+  <!-- 图表放大查看弹窗 -->
+  <div v-if="zoom.show" class="backdrop fixed inset-0 z-[100] grid place-items-center p-4" style="z-index:100" @click.self="closeZoom" role="dialog" aria-modal="true" :aria-label="'放大查看：' + zoom.title">
+    <div class="zoom-panel flex w-full max-w-[1200px] flex-col overflow-hidden shadow-2xl" style="max-height:88vh">
+      <div class="flex items-center justify-between gap-3 border-b bd px-4 py-3">
+        <h2 class="ink-1 text-sm font-semibold sm:text-base">{{ zoom.title }}</h2>
+        <button class="btn-secondary !px-2.5" @click="closeZoom" aria-label="关闭放大视图">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div ref="chartZoomEl" class="min-h-[320px] w-full" style="height:72vh"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ============================================================
@@ -436,8 +614,30 @@
   }
   const { createApp, nextTick } = Vue;
 
+  // 弹窗图表实例：放在非响应式作用域，避免被 Vue 的 reactive Proxy 包装后
+  // 破坏 ECharts 内部基于对象引用的状态（tooltip 组件异常、resize 崩溃）
+  let zoomChartInstance = null;
+
   /* ======================= 常量与主题色 ======================= */
-  const C_POS = '#10b981', C_NEG = '#f43f5e', C_NEUT = '#94a3b8', C_BRAND = '#2563eb';
+  const C_POS = '#10b981', C_NEG = '#f43f5e', C_NEUT = '#94a3b8';
+  function isLightTheme() { return (document.documentElement.dataset.theme || 'dark') === 'light'; }
+  function TH() {
+    return isLightTheme() ? {
+      brand: '#0284c7', pos: '#059669', neg: '#e11d48', neut: '#94a3b8',
+      axis: '#64748b', split: '#e2e8f0', axisLine: '#cbd5e1',
+      tooltipBg: '#ffffff', tooltipBorder: '#e2e8f0', tooltipText: '#1e293b',
+      legend: '#475569', donutBorder: '#ffffff', wordCloud: '#334155',
+    } : {
+      brand: '#38bdf8', pos: C_POS, neg: C_NEG, neut: C_NEUT,
+      axis: '#94a3b8', split: 'rgba(148,163,184,.12)', axisLine: 'rgba(148,163,184,.25)',
+      tooltipBg: 'rgba(15,23,42,.94)', tooltipBorder: 'rgba(148,163,184,.25)', tooltipText: '#e2e8f0',
+      legend: '#94a3b8', donutBorder: '#0f172a', wordCloud: '#e2e8f0',
+    };
+  }
+  function hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
   const PLATFORMS = ['淘宝', '拼多多', '抖音', '京东', '快手', '小红书'];
   const CATEGORIES = ['护肤', '彩妆', '个护', '食品', '家居'];
 
@@ -553,12 +753,12 @@
         if (dist < bestDist) { bestDist = dist; best = { word, pol }; }
       }
       if (!best) continue;
-      // 属性与评估词之间出现否定词则翻转极性
-      const lo = Math.min(at, content.indexOf(best.word));
-      const hi = Math.max(at, content.indexOf(best.word)) + best.word.length;
-      const seg = content.slice(lo, hi);
+      // 情感词前 4 个字内出现否定词则翻转极性。
+      // 只扫描情感词之前的窗口，避免把「不错」「没效果」等自带否定字的词误翻。
+      const wp = content.indexOf(best.word);
+      const before = content.slice(Math.max(0, wp - 4), wp);
       let pol = best.pol;
-      if (/不|没|无|未/.test(seg)) pol = -pol;
+      if (/[不没无未]/.test(before)) pol = -pol;
       const sentiment = pol > 0 ? '正面' : '负面';
       vps.push({
         review_id: review.id,
@@ -651,7 +851,9 @@
     const rv = find(ALIASES.rating);
     if (rv !== undefined) {
       const m = String(rv).match(/(\d(?:\.\d)?)/);
+      const CN_RATING = { '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5 };
       if (m) rating = Math.max(1, Math.min(5, Math.round(Number(m[1]))));
+      else if (CN_RATING[String(rv).trim().charAt(0)]) rating = CN_RATING[String(rv).trim().charAt(0)];
       else if (/差评|不满意/.test(String(rv))) rating = 1;
       else if (/好评|满意/.test(String(rv))) rating = 5;
     }
@@ -731,40 +933,46 @@
     return (cur - prev) / prev * 100;
   }
 
-  /* ======================= 图表配置（科技蓝/白浅色主题） ======================= */
-  const AXIS = { color: '#64748b', fontSize: 11 };
-  const SPLIT = { lineStyle: { color: '#eef2f7' } };
-  const TOOLTIP = {
-    backgroundColor: '#ffffff', borderColor: '#e2e8f0', textStyle: { color: '#334155', fontSize: 12 },
-    extraCssText: 'box-shadow: 0 8px 24px rgba(15,23,42,.08); border-radius: 8px;',
+  /* ======================= 图表配置（随主题切换） ======================= */
+  const AXIS = () => ({ color: TH().axis, fontSize: 11 });
+  const SPLIT = () => ({ lineStyle: { color: TH().split } });
+  const TOOLTIP = () => {
+    const t = TH();
+    return {
+      backgroundColor: t.tooltipBg, borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText, fontSize: 12 },
+      extraCssText: 'box-shadow: 0 8px 24px rgba(0,0,0,.25); border-radius: 8px;',
+    };
   };
 
   function donutOption(items, centerText) {
     const hasData = items.some(x => x.value > 0);
+    const t = TH();
     return {
-      tooltip: { ...TOOLTIP, trigger: 'item', formatter: p => p.name + '：' + fmtInt(p.value) + '（' + p.percent + '%）' },
-      legend: { bottom: 0, textStyle: { color: '#64748b', fontSize: 11 }, itemWidth: 10, itemHeight: 10 },
+      tooltip: { ...TOOLTIP(), trigger: 'item', formatter: p => p.name + '：' + fmtInt(p.value) + '（' + p.percent + '%）' },
+      legend: { bottom: 0, textStyle: { color: t.legend, fontSize: 11 }, itemWidth: 10, itemHeight: 10 },
       graphic: hasData ? [
-        { type: 'text', left: 'center', top: '38%', style: { text: centerText, fill: '#94a3b8', fontSize: 11, textAlign: 'center' } },
+        { type: 'text', left: 'center', top: '38%', style: { text: centerText, fill: t.neut, fontSize: 11, textAlign: 'center' } },
       ] : [],
       series: [{
         type: 'pie', radius: ['46%', '68%'], center: ['50%', '44%'],
-        itemStyle: { borderColor: '#fff', borderWidth: 2, borderRadius: 4 },
+        itemStyle: { borderColor: t.donutBorder, borderWidth: 2, borderRadius: 4 },
         label: { show: false },
-        emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold', color: '#334155', formatter: '{b}\n{d}%' } },
-        data: hasData ? items : [{ name: '暂无数据', value: 1, itemStyle: { color: '#e2e8f0' } }],
+        emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold', color: t.tooltipText, formatter: '{b}\n{d}%' } },
+        data: hasData ? items : [{ name: '暂无数据', value: 1, itemStyle: { color: t.split } }],
       }],
     };
   }
 
   function lineOption(dates, seriesList) {
+    const t = TH();
     return {
-      tooltip: { ...TOOLTIP, trigger: 'axis' },
-      legend: { top: 0, textStyle: { color: '#64748b', fontSize: 11 }, itemWidth: 14, itemHeight: 8, icon: 'roundRect' },
-      grid: { left: 8, right: 12, top: 30, bottom: 0, containLabel: true },
+      tooltip: { ...TOOLTIP(), trigger: 'axis' },
+      legend: { top: 0, textStyle: { color: t.legend, fontSize: 11 }, itemWidth: 14, itemHeight: 8, icon: 'roundRect' },
+      grid: { left: 8, right: 16, top: 30, bottom: 0, containLabel: true },
       xAxis: { type: 'category', boundaryGap: false, data: dates.map(d => d.slice(5).replace('-', '/')),
-               axisLine: { lineStyle: { color: '#e2e8f0' } }, axisLabel: AXIS, axisTick: { show: false } },
-      yAxis: { type: 'value', splitLine: SPLIT, axisLabel: { ...AXIS, formatter: v => (v >= 1000 ? (v / 1000) + 'k' : v) } },
+               axisLine: { lineStyle: { color: t.axisLine } }, axisLabel: AXIS(), axisTick: { show: false } },
+      yAxis: { type: 'value', splitLine: SPLIT(), axisLabel: { ...AXIS(), formatter: v => (v >= 1000 ? (v / 1000) + 'k' : v) } },
       series: seriesList.map(s => ({ ...s, type: 'line', smooth: true, symbol: 'circle', symbolSize: 4,
                                      lineStyle: { width: 2, color: s.color }, itemStyle: { color: s.color } })),
     };
@@ -789,10 +997,16 @@
         pasteText: '',
         toast: { show: false, msg: '', error: false, timer: null },
         charts: {},
+        theme: document.documentElement.dataset.theme || 'dark',
+        zoom: { show: false, title: '', ref: '' },
+        lastOptions: {},
+        _zoomToken: 0,
       };
     },
 
     computed: {
+      isLight() { return this.theme === 'light'; },
+      themeBtnLabel() { return this.isLight ? '切换到暗黑模式' : '切换到明亮模式'; },
       platformOptions() { return [...new Set(this.allReviews.map(r => r.platform))]; },
       shopOptions() {
         return [...new Set(this.allReviews
@@ -878,7 +1092,7 @@
         prev.negRate = prev.vpTotal ? prev.negV / prev.vpTotal * 100 : 0;
 
         const cards = [
-          { key: 'total', label: '评价数', value: fmtInt(cur.total), color: 'text-brand', delta: delta(cur.total, prev.total) },
+          { key: 'total', label: '评价数', value: fmtInt(cur.total), color: 'ink-accent', delta: delta(cur.total, prev.total) },
           { key: 'posR', label: '正面评价数', value: fmtInt(cur.posR), color: 'text-pos', delta: delta(cur.posR, prev.posR) },
           { key: 'negR', label: '负面评价数', value: fmtInt(cur.negR), color: 'text-neg', delta: delta(cur.negR, prev.negR) },
           { key: 'vpTotal', label: '观点数', value: fmtInt(cur.vpTotal), color: 'text-sky-600', delta: delta(cur.vpTotal, prev.vpTotal) },
@@ -1006,19 +1220,87 @@
       'filters.platform'() { if (this.filters.shop !== '全部店铺' && !this.shopOptions.includes(this.filters.shop)) this.filters.shop = '全部店铺'; },
       'filters.shop'() { if (this.filters.productCode !== '全部编码' && !this.productOptions.some(p => p.code === this.filters.productCode)) this.filters.productCode = '全部编码'; },
       filteredReviews() { nextTick(() => this.renderAllCharts()); },
+      'zoom.show'(show) {
+        if (!show) return;
+        this.$nextTick(() => this.renderZoomChart());
+      },
     },
 
     mounted() {
       this.loadDemo();
       window.addEventListener('resize', this.resizeCharts);
+      window.addEventListener('keydown', this.onZoomKey);
+      window.addEventListener('visipublish-theme', this.onThemeChange);
     },
     beforeUnmount() {
       window.removeEventListener('resize', this.resizeCharts);
+      window.removeEventListener('keydown', this.onZoomKey);
+      window.removeEventListener('visipublish-theme', this.onThemeChange);
+      if (zoomChartInstance) { zoomChartInstance.dispose(); zoomChartInstance = null; }
       Object.values(this.charts).forEach(c => c.dispose());
     },
 
     methods: {
       fmtInt, pct,
+
+      toggleTheme() {
+        const next = this.isLight ? 'dark' : 'light';
+        this.theme = next;
+        if (typeof __vpSetTheme === 'function') __vpSetTheme(next);
+      },
+      onThemeChange() {
+        this.theme = document.documentElement.dataset.theme || 'dark';
+        nextTick(() => {
+          this.renderAllCharts();
+          if (this.zoom.show && zoomChartInstance && this.zoom.ref) {
+            let option = this.chartOptionsMap()[this.zoom.ref];
+            if (!option && this.zoom.ref === 'chartWordCloud') {
+              try { option = this.wordCloudOption(this.chartData); } catch (err) { option = null; }
+            }
+            if (!option) option = this.lastOptions[this.zoom.ref];
+            if (option) zoomChartInstance.setOption(option, true);
+          }
+        });
+      },
+      openZoom(ref, title) {
+        if (!this.lastOptions[ref]) return;
+        this.zoom = { show: true, title, ref };
+      },
+      closeZoom() {
+        if (zoomChartInstance) {
+          zoomChartInstance.dispose();
+          zoomChartInstance = null;
+        }
+        this.zoom.show = false;
+        this.zoom.ref = '';
+      },
+      onZoomKey(e) { if (e.key === 'Escape') this.closeZoom(); },
+      renderZoomChart() {
+        const el = this.$refs.chartZoomEl;
+        if (!el) return;
+        // 等模态框完成布局后再初始化：在 DOM 刚插入时 init 会导致
+        // tooltip 组件损坏（悬停不出数值）；延迟后重建则一切正常。
+        const token = ++this._zoomToken;
+        // 每次打开都用构建函数重新生成全新 option（不复用内联图表处理过的对象）
+        const buildOption = () => {
+          let o = this.chartOptionsMap()[this.zoom.ref];
+          if (!o && this.zoom.ref === 'chartWordCloud') {
+            try { o = this.wordCloudOption(this.chartData); } catch (err) { o = null; }
+          }
+          return o || this.lastOptions[this.zoom.ref] || null;
+        };
+        window.setTimeout(() => {
+          const el2 = this.$refs.chartZoomEl;
+          if (this._zoomToken !== token || !this.zoom.show || !el2) return;
+          if (zoomChartInstance) {
+            zoomChartInstance.dispose();
+            zoomChartInstance = null;
+          }
+          zoomChartInstance = echarts.init(el2, null, { renderer: 'canvas' });
+          const option = buildOption();
+          if (option) zoomChartInstance.setOption(option, true);
+        }, 50);
+      },
 
       showToast(msg, error) {
         this.toast = { show: true, msg, error: !!error };
@@ -1099,88 +1381,99 @@
       },
 
       /* ---------- 图表渲染 ---------- */
-      renderAllCharts() {
+      chartOptionsMap() {
         const d = this.chartData;
-        this.setChart('chartReviewShare', donutOption([
-          { name: '正面评价', value: d.rc['正面'] || 0, itemStyle: { color: C_POS } },
-          { name: '负面评价', value: d.rc['负面'] || 0, itemStyle: { color: C_NEG } },
-          { name: '中性评价', value: d.rc['中性'] || 0, itemStyle: { color: C_NEUT } },
-        ], '评价 ' + fmtInt(this.summary.total)));
-        this.setChart('chartViewpointShare', donutOption([
-          { name: '正面观点', value: d.vc['正面'] || 0, itemStyle: { color: C_POS } },
-          { name: '负面观点', value: d.vc['负面'] || 0, itemStyle: { color: C_NEG } },
-        ], '观点 ' + fmtInt(this.viewpointCount)));
-        this.setChart('chartTrend', lineOption(d.dates, [
-          { name: '评价数', color: C_BRAND, data: d.dates.map(x => d.trendMap[x].total) },
-          { name: '正面评价', color: C_POS, data: d.dates.map(x => d.trendMap[x].pos) },
-          { name: '负面评价', color: C_NEG, data: d.dates.map(x => d.trendMap[x].neg) },
-        ]));
+        return {
+          chartReviewShare: donutOption([
+            { name: '正面评价', value: d.rc['正面'] || 0, itemStyle: { color: C_POS } },
+            { name: '负面评价', value: d.rc['负面'] || 0, itemStyle: { color: C_NEG } },
+            { name: '中性评价', value: d.rc['中性'] || 0, itemStyle: { color: C_NEUT } },
+          ], '评价 ' + fmtInt(this.summary.total)),
+          chartViewpointShare: donutOption([
+            { name: '正面观点', value: d.vc['正面'] || 0, itemStyle: { color: C_POS } },
+            { name: '负面观点', value: d.vc['负面'] || 0, itemStyle: { color: C_NEG } },
+          ], '观点 ' + fmtInt(this.viewpointCount)),
+          chartTrend: lineOption(d.dates, [
+            { name: '评价数', color: TH().brand, data: d.dates.map(x => d.trendMap[x].total) },
+            { name: '正面评价', color: C_POS, data: d.dates.map(x => d.trendMap[x].pos) },
+            { name: '负面评价', color: C_NEG, data: d.dates.map(x => d.trendMap[x].neg) },
+          ]),
+          chartNegTrend: this.negTrendOption(d),
+          chartAspect: this.aspectOption(d),
+        };
+      },
+      renderAllCharts() {
+        const opts = this.chartOptionsMap();
+        for (const [ref, option] of Object.entries(opts)) {
+          this.setChart(ref, option);
+        }
         try {
-          this.setChart('chartWordCloud', this.wordCloudOption(d));
+          this.setChart('chartWordCloud', this.wordCloudOption(this.chartData));
         } catch (err) {
           // 词云插件缺失时降级：不影响其余图表
           this.showToast('词云组件未加载，已跳过该图表', true);
         }
-        this.setChart('chartNegTrend', this.negTrendOption(d));
-        this.setChart('chartAspect', this.aspectOption(d));
       },
 
       wordCloudOption(d) {
+        const t = TH();
         const items = Object.entries(d.wc)
           .map(([name, v]) => ({
             name,
             value: v.count,
-            itemStyle: { color: v.pos >= v.neg ? (v.pos > v.neg ? C_POS : '#60a5fa') : C_NEG },
+            itemStyle: { color: v.pos >= v.neg ? (v.pos > v.neg ? t.pos : t.brand) : t.neg },
           }))
           .sort((a, b) => b.value - a.value)
           .slice(0, 48);
         return {
-          tooltip: { ...TOOLTIP, formatter: p => p.name + '：' + p.value + ' 次' },
+          tooltip: { ...TOOLTIP(), formatter: p => p.name + '：' + p.value + ' 次' },
           series: [{
             type: 'wordCloud', shape: 'circle', width: '96%', height: '92%',
             sizeRange: [12, 34], rotationRange: [0, 0], gridSize: 6,
             textStyle: { fontFamily: 'Inter, "PingFang SC", sans-serif', fontWeight: 600 },
             emphasis: { textStyle: { textShadowBlur: 8, textShadowColor: 'rgba(0,0,0,.12)' } },
-            data: items.length ? items : [{ name: '暂无数据', value: 1, itemStyle: { color: '#e2e8f0' } }],
+            data: items.length ? items : [{ name: '暂无数据', value: 1, itemStyle: { color: t.split } }],
           }],
         };
       },
 
       negTrendOption(d) {
+        const t = TH();
         const dates = d.dates;
         const counts = dates.map(x => d.negByDate[x] || 0);
         const rates = dates.map(x => d.trendMap[x].total ? Math.round((d.negByDate[x] || 0) / d.trendMap[x].total * 1000) / 10 : 0);
         return {
-          tooltip: { ...TOOLTIP, trigger: 'axis' },
-          legend: { top: 0, textStyle: { color: '#64748b', fontSize: 11 }, itemWidth: 14, itemHeight: 8, icon: 'roundRect' },
-          grid: { left: 8, right: 8, top: 30, bottom: 0, containLabel: true },
-          xAxis: { type: 'category', data: dates.map(x => x.slice(5).replace('-', '/')), axisLine: { lineStyle: { color: '#e2e8f0' } }, axisLabel: AXIS, axisTick: { show: false } },
+          tooltip: { ...TOOLTIP(), trigger: 'axis' },
+          legend: { top: 0, textStyle: { color: t.legend, fontSize: 11 }, itemWidth: 14, itemHeight: 8, icon: 'roundRect' },
+          grid: { left: 8, right: 30, top: 30, bottom: 0, containLabel: true },
+          xAxis: { type: 'category', data: dates.map(x => x.slice(5).replace('-', '/')), axisLine: { lineStyle: { color: t.axisLine } }, axisLabel: AXIS(), axisTick: { show: false } },
           yAxis: [
-            { type: 'value', name: '条', splitLine: SPLIT, axisLabel: { ...AXIS, formatter: v => (v >= 1000 ? (v / 1000) + 'k' : v) } },
-            { type: 'value', name: '%', splitLine: { show: false }, axisLabel: { ...AXIS, formatter: v => v + '%' } },
+            { type: 'value', name: '条', splitLine: SPLIT(), axisLabel: { ...AXIS(), formatter: v => (v >= 1000 ? (v / 1000) + 'k' : v) } },
+            { type: 'value', splitLine: { show: false }, axisLabel: { ...AXIS(), formatter: v => v + '%' } },
           ],
           series: [
             { name: '负面观点数', type: 'bar', barMaxWidth: 14, data: counts,
-              itemStyle: { color: 'rgba(244,63,94,.75)', borderRadius: [3, 3, 0, 0] } },
+              itemStyle: { color: hexA(t.neg, .78), borderRadius: [3, 3, 0, 0] } },
             { name: '负面率', type: 'line', yAxisIndex: 1, smooth: true, symbol: 'circle', symbolSize: 4,
-              data: rates, lineStyle: { width: 2, color: C_BRAND }, itemStyle: { color: C_BRAND } },
+              data: rates, lineStyle: { width: 2, color: t.brand }, itemStyle: { color: t.brand } },
           ],
         };
       },
 
       aspectOption(d) {
+        const t = TH();
         const aspects = Object.keys(ASPECTS).filter(a => (d.aspMap[a].pos + d.aspMap[a].neg) > 0).reverse();
         return {
-          tooltip: { ...TOOLTIP, trigger: 'axis', axisPointer: { type: 'shadow' } },
-          legend: { top: 0, textStyle: { color: '#64748b', fontSize: 11 }, itemWidth: 10, itemHeight: 10 },
+          tooltip: { ...TOOLTIP(), trigger: 'axis', axisPointer: { type: 'shadow' } },
+          legend: { top: 0, textStyle: { color: t.legend, fontSize: 11 }, itemWidth: 10, itemHeight: 10 },
           grid: { left: 8, right: 16, top: 28, bottom: 0, containLabel: true },
-          xAxis: { type: 'value', splitLine: SPLIT, axisLabel: { ...AXIS, formatter: v => (v >= 1000 ? (v / 1000) + 'k' : v) } },
-          yAxis: { type: 'category', data: aspects, axisLine: { lineStyle: { color: '#e2e8f0' } }, axisLabel: AXIS, axisTick: { show: false } },
+          xAxis: { type: 'value', splitLine: SPLIT(), axisLabel: { ...AXIS(), formatter: v => (v >= 1000 ? (v / 1000) + 'k' : v) } },
+          yAxis: { type: 'category', data: aspects, axisLine: { lineStyle: { color: t.axisLine } }, axisLabel: AXIS(), axisTick: { show: false } },
           series: [
             { name: '正面观点', type: 'bar', stack: 'a', barMaxWidth: 16, data: aspects.map(a => d.aspMap[a].pos),
-              itemStyle: { color: C_POS, borderRadius: [0, 0, 0, 0] } },
+              itemStyle: { color: t.pos, borderRadius: [0, 0, 0, 0] } },
             { name: '负面观点', type: 'bar', stack: 'a', barMaxWidth: 16, data: aspects.map(a => d.aspMap[a].neg),
-              itemStyle: { color: C_NEG, borderRadius: [3, 3, 0, 0] } },
+              itemStyle: { color: t.neg, borderRadius: [3, 3, 0, 0] } },
           ],
         };
       },
@@ -1192,6 +1485,7 @@
         if (!chart) chart = echarts.init(el, null, { renderer: 'canvas' });
         chart.setOption(option, true);
         this.charts[ref] = chart;
+        this.lastOptions[ref] = option;
       },
       resizeCharts() { Object.values(this.charts).forEach(c => c.resize()); },
     },

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,6 +27,13 @@ COLUMN_ALIASES: dict[str, list[str]] = {
 }
 
 DEFAULT_VALUES = {"platform": "未知平台", "shop": "未知店铺", "product": "未命名商品"}
+
+CN_RATING = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5}
+
+
+def _half_up(value: float) -> int:
+    """四舍五入（半值向上），与前端 Math.round 一致，避免银行家舍入导致 4.5 -> 4。"""
+    return int(math.floor(float(value) + 0.5))
 
 
 @dataclass
@@ -56,13 +64,16 @@ def normalize_star(value) -> int:
     if isinstance(value, (int, float)):
         if pd.isna(value):
             return 3
-        return max(1, min(5, int(round(value))))
+        return max(1, min(5, _half_up(value)))
     s = str(value).strip()
     if re.fullmatch(r"[★☆*]{1,5}", s) or re.fullmatch(r"[⭐]{1,5}", s):
         return max(1, min(5, s.count("★") or s.count("⭐")))
+    cn = re.fullmatch(r"([一二两三四五])星", s)
+    if cn:
+        return CN_RATING[cn.group(1)]
     m = re.search(r"(\d(?:\.\d)?)", s)
     if m:
-        return max(1, min(5, int(round(float(m.group(1))))))
+        return max(1, min(5, _half_up(float(m.group(1)))))
     if "好评" in s or "满意" in s:
         return 5
     if "中评" in s or "一般" in s:
@@ -181,7 +192,7 @@ def parse_pasted_text(text: str) -> tuple[list[ReviewRow], ImportStats]:
         content = line
         m = LINE_PREFIX.match(line)
         if m:
-            rating = max(1, min(5, int(round(float(m.group(1))))))
+            rating = max(1, min(5, _half_up(float(m.group(1)))))
             content = m.group(2).strip()
         if not content:
             stats.skipped_rows += 1

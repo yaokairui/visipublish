@@ -5,6 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>全平台电商运营看板 · VisiPublish Ops Dashboard</title>
 
+<!-- 主题初始化（Vue 挂载前执行）：URL ?theme= > localStorage > 默认 dark -->
+<script>
+(function () {
+  var theme = 'dark';
+  try {
+    var q = new URLSearchParams(location.search).get('theme');
+    if (q === 'light' || q === 'dark') theme = q;
+    else {
+      var s = localStorage.getItem('visipublish-theme');
+      if (s === 'light' || s === 'dark') theme = s;
+    }
+  } catch (e) {}
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+  window.__visipublishTheme = theme;
+})();
+function __vpSetTheme(t) {
+  if (t !== 'light' && t !== 'dark') t = 'dark';
+  document.documentElement.dataset.theme = t;
+  document.documentElement.style.colorScheme = t;
+  window.__visipublishTheme = t;
+  try { localStorage.setItem('visipublish-theme', t); } catch (e) {}
+  window.dispatchEvent(new CustomEvent('visipublish-theme', { detail: t }));
+}
+</script>
+
 <!-- 字体（本地优先）：IBM Plex Sans（拉丁，Styrene 风格近似）/ JetBrains Mono（数字）/ Noto Sans SC（中文变量字体） -->
 <link rel="stylesheet" href="libs/fonts/ibm-plex-sans.css" />
 <link rel="stylesheet" href="libs/fonts/jetbrains-mono.css" />
@@ -116,6 +142,53 @@
       radial-gradient(600px 220px at 15% -20px, rgba(34,211,238,.12), transparent 70%),
       radial-gradient(700px 260px at 85% -40px, rgba(139,92,246,.14), transparent 70%);
   }
+
+  /* ============ 亮色适配：保持科技布局，反转配色 ============ */
+  html[data-theme='light'] body {
+    background-color: #f4f6fb;
+    color: #1e293b;
+  }
+  html[data-theme='light'] header { background: rgba(255,255,255,.85); }
+  html[data-theme='light'] .card { background: rgba(255,255,255,.78); border-color: rgba(15,23,42,.08); }
+  html[data-theme='light'] .input { background: #ffffff; color: #334155; border-color: #e2e8f0; color-scheme: light; }
+  html[data-theme='light'] .input:hover { border-color: #94a3b8; }
+  html[data-theme='light'] .text-slate-100 { color: #0f172a; }
+  html[data-theme='light'] .text-slate-200,
+  html[data-theme='light'] .text-slate-300 { color: #334155; }
+  html[data-theme='light'] .text-slate-400,
+  html[data-theme='light'] .text-slate-500 { color: #64748b; }
+  html[data-theme='light'] .border-white\/10,
+  html[data-theme='light'] .border-white\/15,
+  html[data-theme='light'] .border-white\/5 { border-color: rgba(15,23,42,.08); }
+  html[data-theme='light'] .bg-white\/5,
+  html[data-theme='light'] .bg-white\/\[0\.03\] { background: rgba(15,23,42,.04); }
+  html[data-theme='light'] .btn-secondary { border-color: #e2e8f0; background: #ffffff; color: #334155; }
+  html[data-theme='light'] .btn-secondary:hover { background: #f1f5f9; }
+  html[data-theme='light'] .chip-off { background: #ffffff; border-color: #e2e8f0; color: #475569; }
+  html[data-theme='light'] .chip-off:hover { color: #0f172a; border-color: #94a3b8; }
+  html[data-theme='light'] .seg-off { background: transparent; color: #475569; }
+  html[data-theme='light'] .seg-off:hover { color: #0f172a; }
+  html[data-theme='light'] .table-wrap thead th { background: #ffffff; color: #475569; }
+  html[data-theme='light'] .table-wrap::-webkit-scrollbar-thumb { background: rgba(100,116,139,.35); }
+  html[data-theme='light'] .badge-ok { background: rgba(16,185,129,.12); color: #047857; border-color: rgba(16,185,129,.35); }
+  html[data-theme='light'] .badge-danger { background: rgba(244,63,94,.10); color: #be123c; border-color: rgba(244,63,94,.30); }
+  html[data-theme='light'] .signal-bar { background: rgba(15,23,42,.07); }
+  html[data-theme='light'] .glow-top { opacity: .30; }
+  html[data-theme='light'] .hover\:bg-white\/10:hover { background: rgba(15,23,42,.05); }
+  html[data-theme='light'] .hover\:border-white\/25:hover { border-color: #cbd5e1; }
+  html[data-theme='light'] .hover\:text-white:hover { color: #0f172a; }
+
+  /* 主题切换按钮（右上角） */
+  .theme-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border-radius: 9999px; cursor: pointer;
+    color: #e2e8f0; background: rgba(255,255,255,.06); border: 1px solid rgba(148,163,184,.25);
+    transition: background .2s, border-color .2s, color .2s, transform .15s;
+  }
+  .theme-toggle:hover { border-color: rgba(34,211,238,.55); color: #67e8f9; transform: scale(1.05); }
+  .theme-toggle:active { transform: scale(.95); }
+  html[data-theme='light'] .theme-toggle { color: #334155; background: #ffffff; border-color: #e2e8f0; }
+  html[data-theme='light'] .theme-toggle:hover { color: #0891b2; border-color: rgba(8,145,178,.4); }
 </style>
 </head>
 
@@ -152,6 +225,10 @@
       </div>
 
       <div class="flex items-center gap-2.5">
+        <button class="theme-toggle" type="button" @click="toggleTheme" :aria-label="themeBtnLabel" :title="themeBtnLabel">
+          <svg v-if="isLight" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg v-else class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+        </button>
         <button class="btn-secondary" @click="loadSample" title="载入内置的多平台模拟数据">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
           恢复示例数据
@@ -775,15 +852,27 @@
 
   /* ======================= 图表配置 ======================= */
   const FONT_FAMILY = '"IBM Plex Sans", "Noto Sans SC", "Microsoft YaHei", sans-serif';
-  const AXIS_LABEL = { color: '#94a3b8', fontSize: 12 };
-  const SPLIT_LINE = { lineStyle: { color: 'rgba(148,163,184,0.12)' } };
-  const AXIS_LINE = { lineStyle: { color: 'rgba(148,163,184,0.2)' } };
-  const LEGEND = { top: 0, textStyle: { color: '#94a3b8', fontSize: 12 }, itemWidth: 14, itemHeight: 8, icon: 'roundRect' };
-  const TOOLTIP_AXIS = {
-    trigger: 'axis', backgroundColor: 'rgba(15,23,42,0.92)', borderColor: 'rgba(148,163,184,0.25)',
-    textStyle: { color: '#e2e8f0', fontSize: 12 },
+  function isLightTheme() { return (document.documentElement.dataset.theme || 'dark') === 'light'; }
+  function TH() {
+    return isLightTheme() ? {
+      axis: '#475569', split: 'rgba(15,23,42,.08)', axisLine: 'rgba(15,23,42,.12)',
+      legend: '#334155', tooltipBg: '#ffffff', tooltipBorder: '#e2e8f0', tooltipText: '#1e293b',
+      label: '#334155', muted: '#64748b', donutBorder: '#ffffff',
+    } : {
+      axis: '#94a3b8', split: 'rgba(148,163,184,0.12)', axisLine: 'rgba(148,163,184,0.2)',
+      legend: '#94a3b8', tooltipBg: 'rgba(15,23,42,0.92)', tooltipBorder: 'rgba(148,163,184,0.25)', tooltipText: '#e2e8f0',
+      label: '#e2e8f0', muted: '#64748b', donutBorder: '#0a1120',
+    };
+  }
+  const AXIS_LABEL = () => ({ color: TH().axis, fontSize: 12 });
+  const SPLIT_LINE = () => ({ lineStyle: { color: TH().split } });
+  const AXIS_LINE = () => ({ lineStyle: { color: TH().axisLine } });
+  const LEGEND = () => ({ top: 0, textStyle: { color: TH().legend, fontSize: 12 }, itemWidth: 14, itemHeight: 8, icon: 'roundRect' });
+  const TOOLTIP_AXIS = () => ({
+    trigger: 'axis', backgroundColor: TH().tooltipBg, borderColor: TH().tooltipBorder,
+    textStyle: { color: TH().tooltipText, fontSize: 12 },
     valueFormatter: v => compactMoney(v),
-  };
+  });
 
   function grad(from, to) {
     return new echarts.graphic.LinearGradient(0, 0, 0, 1, [
@@ -794,7 +883,7 @@
   // 空数据图表占位
   function emptyChartOption(text) {
     return {
-      title: { text: text || '暂无数据', left: 'center', top: 'middle', textStyle: { color: '#64748b', fontSize: 13, fontWeight: 400 } },
+      title: { text: text || '暂无数据', left: 'center', top: 'middle', textStyle: { color: TH().muted, fontSize: 13, fontWeight: 400 } },
       tooltip: { show: false }, legend: { show: false },
       xAxis: { show: false }, yAxis: { show: false }, series: [],
     };
@@ -803,14 +892,14 @@
   // 1) 各平台 GMV 趋势
   function trendOption(d, platforms) {
     return {
-      tooltip: TOOLTIP_AXIS,
-      legend: LEGEND,
+      tooltip: TOOLTIP_AXIS(),
+      legend: LEGEND(),
       grid: { left: 8, right: 16, top: 34, bottom: 0, containLabel: true },
       xAxis: {
         type: 'category', boundaryGap: false, data: d.dates.map(x => x.slice(5).replace('-', '/')),
-        axisLine: AXIS_LINE, axisLabel: AXIS_LABEL, axisTick: { show: false },
+        axisLine: AXIS_LINE(), axisLabel: AXIS_LABEL(), axisTick: { show: false },
       },
-      yAxis: { type: 'value', splitLine: SPLIT_LINE, axisLabel: { ...AXIS_LABEL, formatter: compact } },
+      yAxis: { type: 'value', splitLine: SPLIT_LINE(), axisLabel: { ...AXIS_LABEL(), formatter: compact } },
       series: platforms.map(p => ({
         name: p, type: 'line', smooth: true, symbol: 'none',
         lineStyle: { width: 2, color: colorOf(p) },
@@ -822,22 +911,23 @@
 
   // 2) 平台销售占比（环形）
   function shareOption(items, total) {
+    const t = TH();
     return {
       tooltip: {
-        trigger: 'item', backgroundColor: 'rgba(15,23,42,0.92)', borderColor: 'rgba(148,163,184,0.25)',
-        textStyle: { color: '#e2e8f0', fontSize: 12 },
+        trigger: 'item', backgroundColor: t.tooltipBg, borderColor: t.tooltipBorder,
+        textStyle: { color: t.tooltipText, fontSize: 12 },
         formatter: p => p.name + '<br/>GMV：' + compactMoney(p.value) + '（' + p.percent + '%）',
       },
-      legend: { orient: 'vertical', right: 4, top: 'center', textStyle: { color: '#94a3b8', fontSize: 12 }, itemWidth: 10, itemHeight: 10 },
+      legend: { orient: 'vertical', right: 4, top: 'center', textStyle: { color: t.legend, fontSize: 12 }, itemWidth: 10, itemHeight: 10 },
       graphic: [
-        { type: 'text', left: '34%', top: '43%', style: { text: '总 GMV', fill: '#94a3b8', fontSize: 11, textAlign: 'center' } },
-        { type: 'text', left: '34%', top: '52%', style: { text: compactMoney(total), fill: '#e2e8f0', fontSize: 16, fontWeight: 600, textAlign: 'center' } },
+        { type: 'text', left: '34%', top: '43%', style: { text: '总 GMV', fill: t.muted, fontSize: 11, textAlign: 'center' } },
+        { type: 'text', left: '34%', top: '52%', style: { text: compactMoney(total), fill: t.label, fontSize: 16, fontWeight: 600, textAlign: 'center' } },
       ],
       series: [{
         type: 'pie', radius: ['52%', '72%'], center: ['34%', '50%'], avoidLabelOverlap: true,
-        itemStyle: { borderColor: '#0a1120', borderWidth: 2, borderRadius: 4 },
+        itemStyle: { borderColor: t.donutBorder, borderWidth: 2, borderRadius: 4 },
         label: { show: false },
-        emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold', color: '#e2e8f0', formatter: '{b}\n{d}%' } },
+        emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold', color: t.label, formatter: '{b}\n{d}%' } },
         data: items,
       }],
     };
@@ -846,11 +936,11 @@
   // 3) 各平台业绩对比（多柱状）
   function compareOption(d, platforms) {
     return {
-      tooltip: TOOLTIP_AXIS,
-      legend: LEGEND,
+      tooltip: TOOLTIP_AXIS(),
+      legend: LEGEND(),
       grid: { left: 8, right: 12, top: 34, bottom: 0, containLabel: true },
-      xAxis: { type: 'category', data: platforms, axisLine: AXIS_LINE, axisLabel: AXIS_LABEL, axisTick: { show: false } },
-      yAxis: { type: 'value', splitLine: SPLIT_LINE, axisLabel: { ...AXIS_LABEL, formatter: compact } },
+      xAxis: { type: 'category', data: platforms, axisLine: AXIS_LINE(), axisLabel: AXIS_LABEL(), axisTick: { show: false } },
+      yAxis: { type: 'value', splitLine: SPLIT_LINE(), axisLabel: { ...AXIS_LABEL(), formatter: compact } },
       series: [
         { name: 'GMV', type: 'bar', barMaxWidth: 22, data: platforms.map(p => Math.round(d.gmv[p] * 100) / 100),
           itemStyle: { borderRadius: [4, 4, 0, 0], color: grad('rgba(34,211,238,0.95)', 'rgba(59,130,246,0.55)') } },
@@ -862,39 +952,41 @@
 
   // 4a) 各平台退款率
   function refundRateOption(d, platforms) {
+    const t = TH();
     return {
       tooltip: {
-        trigger: 'axis', backgroundColor: 'rgba(15,23,42,0.92)', borderColor: 'rgba(148,163,184,0.25)',
-        textStyle: { color: '#e2e8f0', fontSize: 12 },
+        trigger: 'axis', backgroundColor: t.tooltipBg, borderColor: t.tooltipBorder,
+        textStyle: { color: t.tooltipText, fontSize: 12 },
         valueFormatter: v => (v * 100).toFixed(1) + '%',
       },
       grid: { left: 8, right: 12, top: 24, bottom: 0, containLabel: true },
-      xAxis: { type: 'category', data: platforms, axisLine: AXIS_LINE, axisLabel: { ...AXIS_LABEL, interval: 0 }, axisTick: { show: false } },
-      yAxis: { type: 'value', max: 0.3, splitLine: SPLIT_LINE, axisLabel: { ...AXIS_LABEL, formatter: v => (v * 100).toFixed(0) + '%' } },
+      xAxis: { type: 'category', data: platforms, axisLine: AXIS_LINE(), axisLabel: { ...AXIS_LABEL(), interval: 0 }, axisTick: { show: false } },
+      yAxis: { type: 'value', max: 0.3, splitLine: SPLIT_LINE(), axisLabel: { ...AXIS_LABEL(), formatter: v => (v * 100).toFixed(0) + '%' } },
       series: [{
         name: '退款率', type: 'bar', barMaxWidth: 20,
         data: platforms.map(p => ({
           value: Math.round(d.rate[p] * 10000) / 10000,
           itemStyle: { color: d.rate[p] > 0.12 ? '#f43f5e' : 'rgba(251,146,60,0.85)', borderRadius: [4, 4, 0, 0] },
         })),
-        label: { show: true, position: 'top', fontSize: 11, color: '#e2e8f0', formatter: p => (p.value * 100).toFixed(1) + '%' },
+        label: { show: true, position: 'top', fontSize: 11, color: t.label, formatter: p => (p.value * 100).toFixed(1) + '%' },
       }],
     };
   }
 
   // 4b) 退款原因分布
   function reasonOption(items) {
+    const t = TH();
     return {
       tooltip: {
-        trigger: 'item', backgroundColor: 'rgba(15,23,42,0.92)', borderColor: 'rgba(148,163,184,0.25)',
-        textStyle: { color: '#e2e8f0', fontSize: 12 },
+        trigger: 'item', backgroundColor: t.tooltipBg, borderColor: t.tooltipBorder,
+        textStyle: { color: t.tooltipText, fontSize: 12 },
         formatter: p => p.name + '<br/>退款：' + compactMoney(p.value) + '（' + p.percent + '%）',
       },
-      legend: { bottom: 0, textStyle: { color: '#94a3b8', fontSize: 11 }, itemWidth: 10, itemHeight: 10 },
+      legend: { bottom: 0, textStyle: { color: t.legend, fontSize: 11 }, itemWidth: 10, itemHeight: 10 },
       series: [{
         type: 'pie', radius: ['30%', '58%'], center: ['50%', '44%'],
-        itemStyle: { borderColor: '#0a1120', borderWidth: 2, borderRadius: 3 },
-        label: { show: true, fontSize: 11, color: '#cbd5e1', formatter: '{b} {d}%' },
+        itemStyle: { borderColor: t.donutBorder, borderWidth: 2, borderRadius: 3 },
+        label: { show: true, fontSize: 11, color: t.label, formatter: '{b} {d}%' },
         data: items,
       }],
     };
@@ -903,11 +995,11 @@
   // 5) 新老客贡献（堆叠柱状）
   function customerOption(d, platforms) {
     return {
-      tooltip: TOOLTIP_AXIS,
-      legend: LEGEND,
+      tooltip: TOOLTIP_AXIS(),
+      legend: LEGEND(),
       grid: { left: 8, right: 12, top: 34, bottom: 0, containLabel: true },
-      xAxis: { type: 'category', data: platforms, axisLine: AXIS_LINE, axisLabel: AXIS_LABEL, axisTick: { show: false } },
-      yAxis: { type: 'value', splitLine: SPLIT_LINE, axisLabel: { ...AXIS_LABEL, formatter: compact } },
+      xAxis: { type: 'category', data: platforms, axisLine: AXIS_LINE(), axisLabel: AXIS_LABEL(), axisTick: { show: false } },
+      yAxis: { type: 'value', splitLine: SPLIT_LINE(), axisLabel: { ...AXIS_LABEL(), formatter: compact } },
       series: [
         { name: '新客 GMV', type: 'bar', stack: 't', barMaxWidth: 24, data: platforms.map(p => Math.round(d.fresh[p])),
           itemStyle: { color: grad('rgba(34,211,238,0.95)', 'rgba(34,211,238,0.5)'), borderRadius: [0, 0, 0, 0] } },
@@ -920,15 +1012,16 @@
   // 6) 各平台体验分（横向条形 + 4.3 预警线）
   function experienceOption(d, platforms) {
     const list = [...platforms].reverse(); // 横向条形图自下而上
+    const t = TH();
     return {
       tooltip: {
-        trigger: 'axis', backgroundColor: 'rgba(15,23,42,0.92)', borderColor: 'rgba(148,163,184,0.25)',
-        textStyle: { color: '#e2e8f0', fontSize: 12 },
+        trigger: 'axis', backgroundColor: t.tooltipBg, borderColor: t.tooltipBorder,
+        textStyle: { color: t.tooltipText, fontSize: 12 },
         valueFormatter: v => Number(v).toFixed(2) + ' 分',
       },
       grid: { left: 8, right: 56, top: 8, bottom: 0, containLabel: true },
-      xAxis: { type: 'value', min: 3.5, max: 5, splitLine: SPLIT_LINE, axisLabel: { ...AXIS_LABEL, formatter: v => v.toFixed(1) } },
-      yAxis: { type: 'category', data: list, axisLine: AXIS_LINE, axisLabel: AXIS_LABEL, axisTick: { show: false } },
+      xAxis: { type: 'value', min: 3.5, max: 5, splitLine: SPLIT_LINE(), axisLabel: { ...AXIS_LABEL(), formatter: v => v.toFixed(1) } },
+      yAxis: { type: 'category', data: list, axisLine: AXIS_LINE(), axisLabel: AXIS_LABEL(), axisTick: { show: false } },
       series: [{
         type: 'bar', barWidth: 14,
         data: list.map(p => {
@@ -936,7 +1029,7 @@
           const color = v < 4.3 ? '#f43f5e' : v < 4.5 ? '#fbbf24' : '#34d399';
           return { value: v, itemStyle: { color, borderRadius: [0, 4, 4, 0] } };
         }),
-        label: { show: true, position: 'right', fontSize: 11, color: '#e2e8f0', formatter: p => p.value.toFixed(2) },
+        label: { show: true, position: 'right', fontSize: 11, color: t.label, formatter: p => p.value.toFixed(2) },
         markLine: {
           symbol: 'none', silent: true,
           lineStyle: { color: '#f43f5e', type: 'dashed' },
@@ -966,10 +1059,13 @@
         now: new Date(),   // 顶部实时时钟
         clockTimer: null,
         prevKpiRaw: {},    // KPI 数字滚动动画的上一次数值
+        theme: document.documentElement.dataset.theme || 'dark',
       };
     },
 
     computed: {
+      isLight() { return this.theme === 'light'; },
+      themeBtnLabel() { return this.isLight ? '切换到暗黑模式' : '切换到明亮模式'; },
       // 数据中出现的全部平台（支持导入任意平台名）
       allPlatforms() {
         const s = new Set(PLATFORMS);
@@ -1190,6 +1286,7 @@
     mounted() {
       this.loadSample();
       window.addEventListener('resize', this.resizeCharts);
+      window.addEventListener('visipublish-theme', this.onThemeChange);
       this.clockTimer = setInterval(() => { this.now = new Date(); }, 1000);
       // 字体就绪后重绘图表，让 canvas 文字用上新字体
       if (document.fonts && document.fonts.ready) {
@@ -1199,12 +1296,23 @@
     beforeUnmount() {
       clearInterval(this.clockTimer);
       window.removeEventListener('resize', this.resizeCharts);
+      window.removeEventListener('visipublish-theme', this.onThemeChange);
       Object.values(this.charts).forEach(c => c.dispose());
     },
 
     methods: {
       /* ---------- 通用 ---------- */
       fmtInt, pct, compactMoney, colorOf,
+
+      toggleTheme() {
+        const next = this.isLight ? 'dark' : 'light';
+        this.theme = next;
+        if (typeof __vpSetTheme === 'function') __vpSetTheme(next);
+      },
+      onThemeChange() {
+        this.theme = document.documentElement.dataset.theme || 'dark';
+        nextTick(() => this.renderAllCharts());
+      },
 
       /* ---------- 实时时钟 ---------- */
       clock() {

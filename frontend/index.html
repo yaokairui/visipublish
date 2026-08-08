@@ -4,6 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>电商 AI 智能上架助手</title>
+    <script>
+      (function () {
+        var theme = 'dark';
+        try {
+          var q = new URLSearchParams(location.search).get('theme');
+          if (q === 'light' || q === 'dark') theme = q;
+          else {
+            var s = localStorage.getItem('visipublish-theme');
+            if (s === 'light' || s === 'dark') theme = s;
+          }
+        } catch (e) {}
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        window.__visipublishTheme = theme;
+      })();
+      function __vpSetTheme(t) {
+        if (t !== 'light' && t !== 'dark') t = 'dark';
+        document.documentElement.dataset.theme = t;
+        document.documentElement.style.colorScheme = t;
+        window.__visipublishTheme = t;
+        try { localStorage.setItem('visipublish-theme', t); } catch (e) {}
+        window.dispatchEvent(new CustomEvent('visipublish-theme', { detail: t }));
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

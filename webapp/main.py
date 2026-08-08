@@ -5,6 +5,7 @@
 
 启动：python -m uvicorn webapp.main:app --port 8502
 """
+import re
 import sys
 import threading
 import uuid
@@ -47,6 +48,10 @@ app.add_middleware(
 _SESSIONS: dict[str, dict] = {}  # session_id -> {"items": [Item]}
 _JOBS: dict[str, dict] = {}      # job_id -> 发布任务状态
 _CHANNEL = get_channel()
+
+# ---------------- 上传限制 ----------------
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 单张商品图上限 20MB
+ALLOWED_UPLOAD_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
 # ---------------- 工具 ----------------
 def _make_placeholder_urls(item_id: str, prompts: list) -> list:
@@ -207,7 +212,14 @@ async def generate_items(
     picked = files[: config.BATCH_IMAGE_LIMIT]
     items = []
     for f in picked:
-        data = await f.read()
+        data = await f.read(MAX_UPLOAD_BYTES + 1)
+        ext = Path(f.filename or "").suffix.lower()
+        if len(data) > MAX_UPLOAD_BYTES:
+            items.append(_skipped_item(f.filename, f"图片超过 {MAX_UPLOAD_BYTES // (1024 * 1024)}MB 限制"))
+            continue
+        if ext not in ALLOWED_UPLOAD_EXT:
+            items.append(_skipped_item(f.filename, f"不支持的文件类型：{ext or '无扩展名'}"))
+            continue
         try:
             vision = analyze_image(data)
             item = _build_item(f.filename, data, vision)
@@ -244,6 +256,8 @@ def review_item(
         raise HTTPException(status_code=400, detail="该条目生成失败，无法编辑")
 
     category = body.category or item["category"]
+    if category not in CATEGORY_OPTIONS:
+        raise HTTPException(status_code=400, detail=f"未知类目：{category}")
     rule = get_rule_by_name(category)
     item["category_key"] = rule["name"] if rule["name"] == category else item["category_key"]
     item["category"] = rule["name"]
@@ -277,6 +291,9 @@ def regen_item(
     item["listing"] = listing
     item["status"] = "pending"
     item["error"] = ""
+    # 重新生成后清除旧发布绑定，避免幂等键仍指向已下架记录
+    item["backend_id"] = None
+    item["rpa_result"] = None
     _refresh_title(item)
     return {"item": item}
 
@@ -296,6 +313,10 @@ def delist_item(
 
 @app.get("/api/placeholders/{item_id}/{index}")
 def placeholder_image(item_id: str, index: int):
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", item_id):
+        raise HTTPException(status_code=400, detail="非法商品 ID")
+    if index < 1 or index > 50:
+        raise HTTPException(status_code=400, detail="非法占位图序号")
     path = config.OUTPUT_DIR / "placeholders" / item_id / f"placeholder_{index}.png"
     if not path.exists():
         raise HTTPException(status_code=404, detail="占位图不存在")
@@ -329,14 +350,15 @@ def publish_items(
     targets = [
         it
         for it in sess["items"]
-        if it["id"] in body.item_ids
-        and it["status"] not in ("success", "delisted", "skipped")
+        if it["id"] in body.item_ids and it["status"] == "pending"
     ]
     if not targets:
-        raise HTTPException(status_code=400, detail="没有可上架的勾选项")
+        raise HTTPException(status_code=400, detail="没有可上架的勾选项（进行中的任务会锁定条目）")
 
     for it in targets:
         it["payload"] = _build_payload(it)
+    for it in targets:  # 原子认领：先置为 publishing，防止并发重复发布
+        it["status"] = "publishing"
 
     job_id = uuid.uuid4().hex[:12]
     job = {
@@ -356,6 +378,10 @@ def publish_items(
             job["failed"] = summary["failed"]
         except Exception as exc:  # 整体兜底，避免线程静默死亡
             job["error"] = str(exc)
+            for it in targets:
+                if it.get("status") == "publishing":
+                    it["status"] = "failed"
+                    it["error"] = str(exc)
             job["failed"] = len(targets) - job.get("success", 0)
         finally:
             job["running"] = False

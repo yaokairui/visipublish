@@ -7,6 +7,7 @@ import UploadZone from './components/UploadZone'
 import ReviewTable from './components/ReviewTable'
 import PublishPanel from './components/PublishPanel'
 import { Toasts, useToast } from './components/Toast'
+import ThemeToggle from './components/ThemeToggle'
 
 export default function App() {
   const [config, setConfig] = useState<Config | null>(null)
@@ -200,6 +201,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
+      <ThemeToggle />
       <Sidebar config={config} itemCount={items.length} onClear={handleClearSession} />
       <main className="mx-auto max-w-6xl px-6 py-6 lg:ml-72">
         <header className="mb-6">

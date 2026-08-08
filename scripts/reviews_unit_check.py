@@ -33,6 +33,8 @@ check("normalize_star 星号串", normalize_star("★★★★☆") == 4)
 check("normalize_star emoji", normalize_star("⭐⭐⭐⭐") == 4)
 check("normalize_star 文本", normalize_star("差评") == 1)
 check("normalize_star 空", normalize_star("") == 3)
+check("normalize_star 半值向上", normalize_star(4.5) == 5)
+check("normalize_star 中文数字", normalize_star("五星") == 5)
 
 # 2. 粘贴文本解析
 rows, stats = parse_pasted_text("[1星] 物流太慢了\n[5星] 很好用\n一般般\n\n[2星] 色差严重")
@@ -67,6 +69,10 @@ check("情感分布合理", summary["positive"] > 60 and summary["negative"] > 3
 check("情感中性样例", any(r["sentiment"] == "neutral" for r in analyzed))
 check("差评判定样例", analyzer.analyze("物流太慢了，等了一周").sentiment == "negative")
 check("好评判定样例", analyzer.analyze("面料很舒服，很满意，会回购").sentiment == "positive")
+check("质量不好判负", analyzer.analyze("质量不好").sentiment == "negative")
+check("尺寸太小判负", analyzer.analyze("衣服太小").sentiment == "negative")
+check("没效果判负", analyzer.analyze("用了几次没效果").sentiment == "negative")
+check("不油腻判正", analyzer.analyze("一点都不油腻").sentiment == "positive")
 
 # 5. 痛点挖掘
 pain = extract_pain_points(analyzed, top_n=10)
@@ -75,6 +81,16 @@ print("    痛点词 Top10:", top_words)
 check("痛点词非空", len(pain) > 0)
 check("痛点含关键词", any(w in ("物流", "快递", "客服", "色差", "破损", "退货", "贵") for w in top_words))
 check("痛点例句非空", all(p["examples"] for p in pain[:3]))
+
+# 5b. spec 验收场景：物流类差评集中 → 快递/发货/慢 成为高权重痛点词
+neg_logistics = [{"content": "快递太慢，发货也慢", "sentiment": "negative"} for _ in range(30)]
+pos_normal = [{"content": "质量很好，面料舒服", "sentiment": "positive"} for _ in range(30)]
+pain2 = extract_pain_points(neg_logistics + pos_normal, top_n=10)
+top2 = [p["word"] for p in pain2]
+print("    物流场景痛点 Top10:", top2)
+check("物流场景含快递", "快递" in top2)
+check("物流场景含发货", "发货" in top2)
+check("物流场景含慢", ("慢" in top2) or ("太慢" in top2))
 
 print("\n" + ("ALL CHECKS PASSED" if not FAIL else f"FAILED: {FAIL}"))
 sys.exit(1 if FAIL else 0)

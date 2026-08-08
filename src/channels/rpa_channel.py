@@ -59,7 +59,12 @@ class RpaChannel(BaseChannel):
 
     def _launch_page(self, playwright):
         """启动浏览器并返回 (browser, page)，统一视口便于截图演示。"""
-        browser = playwright.chromium.launch(headless=self.headless)
+        browser_type = getattr(playwright, self.browser_name, None)
+        if browser_type is None:
+            raise RPAError(
+                f"不支持的浏览器类型：{self.browser_name}（可用 chromium / firefox / webkit）"
+            )
+        browser = browser_type.launch(headless=self.headless)
         page = browser.new_page(viewport={"width": 1440, "height": 900})
         return browser, page
 
