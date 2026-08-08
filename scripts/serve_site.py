@@ -11,6 +11,7 @@ import os
 import sys
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_PORT = 8090
@@ -29,11 +30,19 @@ class SiteHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(BASE_DIR), **kwargs)
 
+    def _rewrite_entry(self) -> None:
+        # 项目入口：/ 与 /index.html 都指向导航页（需忽略查询串，如 ?theme=dark）
+        parts = urlsplit(self.path)
+        if parts.path in ("/", "/index.html"):
+            self.path = "/site/index.html" + (("?" + parts.query) if parts.query else "")
+
     def do_GET(self):
-        # 项目入口：/ 与 /index.html 都指向导航页
-        if self.path in ("/", "/index.html"):
-            self.path = "/site/index.html"
+        self._rewrite_entry()
         return super().do_GET()
+
+    def do_HEAD(self):
+        self._rewrite_entry()
+        return super().do_HEAD()
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")

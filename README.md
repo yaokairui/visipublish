@@ -8,6 +8,26 @@
 
 另有 `site/` 个人作品集展示站。README 中提到的调研报告与业务数据均为**模拟演示数据**，不涉及任何真实业务。
 
+## 运行截图
+
+> 均为本地运行时的实际界面（默认暗色主题），一键启动后访问各入口即可看到。
+
+**导航页（项目入口）· http://127.0.0.1:8090**
+
+![导航页 · YaoKr电商工具箱](docs/screenshots/nav.png)
+
+**全平台电商运营看板 · dashboard/index.html**
+
+![全平台电商运营看板](docs/screenshots/dashboard.png)
+
+**商品评价分析·声量洞察看板 · reviews/frontend/index.html**
+
+![商品评价分析看板](docs/screenshots/reviews.png)
+
+**电商 AI 智能上架助手 · http://127.0.0.1:8502**
+
+![电商 AI 智能上架助手](docs/screenshots/listing-assistant.png)
+
 ## 1. 项目简介
 
 一个「React 前端 + FastAPI 后端 + Vision API 多模态识别 + 运营规则库 + 渠道适配器 + Playwright RPA 自动上架」的电商 AI 智能上架面试演示项目：用户**批量上传商品图片**，系统逐张识别商品信息，按运营规则与 **AI 大模型**生成标题（含电商曝光关键词），在**批量审核队列**人工确认后，由**渠道适配器**（默认本地模拟后台，Playwright RPA 填表）批量上架；支持幂等防重复、失败隔离与一键下架。
@@ -206,7 +226,7 @@ npm run dev        # http://localhost:5173，/api 代理到 8502
 ## 12. 项目展示站（纯静态 · site/）
 
 - 入口：双击 `site/index.html` 即可离线打开（依赖库在 `site/libs/`，缺失时回退 CDN）。
-- 内容：个人作品集首页 —— Hero + 项目网格（运营看板 / 上架助手 / 评价分析-规划中）+ 理念 + 页脚，含各项目截图与入口链接。
+- 内容：个人作品集首页 —— Hero + 项目网格（运营看板 / 上架助手 / 评价分析）+ 理念 + 页脚，含各项目截图与入口链接。
 - 设计：深空蓝底 + 运行绿（ui-ux-pro-max 设计系统），Inter 字族，滚动入场动画，尊重 `prefers-reduced-motion`。
 - 冒烟测试：`.venv/Scripts/python.exe scripts/site_smoke.py`（1440px / 375px 双端）。
 
@@ -214,6 +234,6 @@ npm run dev        # http://localhost:5173，/api 代理到 8502
 
 - 入口：双击 `reviews/frontend/index.html` 即可离线运行（依赖库在 `reviews/frontend/libs/`，缺失时回退 CDN）。
 - 功能：上传商家后台导出的评价 Excel（SheetJS 浏览器解析）或载入模拟数据 → 观点提取（属性×情感）→ 8 项指标卡（含环比「绿降红升」）/ 情感结构双环形 + 多维度趋势 / 观点标签排名（正负/整体切换）/ 观点词云（情感染色）/ 负面观点趋势（柱+线）/ 属性情感对比 / 观点词频表 / 商品声量正负排名。
-- 风格：科技蓝/白浅色 SaaS 卡片式，柔和红绿情感色；数据仅在本机分析，不上传。
+- 风格：深空蓝科技风（默认暗色，可切换亮色），柔和红绿情感色；数据仅在本机分析，不上传。
 - Python 后端核心（可选增强）：`reviews/backend/` 已含 lexicon 情感分析、导入标准化、痛点挖掘（TF-IDF）；`ANALYZER` 环境变量可切换分析实现。
 - 单元检查：`.venv/Scripts/python.exe scripts/reviews_unit_check.py`；冒烟测试：`.venv/Scripts/python.exe scripts/reviews_smoke.py`。
