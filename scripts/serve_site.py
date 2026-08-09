@@ -30,19 +30,26 @@ class SiteHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(BASE_DIR), **kwargs)
 
-    def _rewrite_entry(self) -> None:
-        # 项目入口：/ 与 /index.html 都指向导航页（需忽略查询串，如 ?theme=dark）
+    def _redirect_entry(self) -> bool:
+        # 项目入口：/ 与 /index.html 302 重定向到导航页（保留查询串，如 ?theme=dark）。
+        # 若只在服务端内部改写路径，浏览器地址栏仍是 /，assets/、../dashboard 等
+        # 相对路径会解析到仓库根目录，导致图片和项目链接 404。
         parts = urlsplit(self.path)
         if parts.path in ("/", "/index.html"):
-            self.path = "/site/index.html" + (("?" + parts.query) if parts.query else "")
+            target = "/site/index.html" + (("?" + parts.query) if parts.query else "")
+            self.send_response(302)
+            self.send_header("Location", target)
+            self.end_headers()
+            return True
+        return False
 
     def do_GET(self):
-        self._rewrite_entry()
-        return super().do_GET()
+        if not self._redirect_entry():
+            return super().do_GET()
 
     def do_HEAD(self):
-        self._rewrite_entry()
-        return super().do_HEAD()
+        if not self._redirect_entry():
+            return super().do_HEAD()
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
